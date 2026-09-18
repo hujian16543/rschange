@@ -1,0 +1,25 @@
+# 默认：自动识别文本，统一 LF 入库
+* text=auto eol=lf
+
+# Windows 脚本必须 CRLF，否则 PowerShell 5.1 解析异常
+*.ps1  text eol=crlf
+*.psm1 text eol=crlf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# 二进制：禁止做行尾转换与文本 diff
+*.tif   binary
+*.tiff  binary
+*.pyd   binary
+*.dll   binary
+*.so    binary
+*.a     binary
+*.lib   binary
+*.exe   binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
+
+# 锁文件：标记为生成物，避免 code review 噪声
+uv.lock             text eol=lf linguist-generated=true
+package-lock.json   text eol=lf linguist-generated=true
