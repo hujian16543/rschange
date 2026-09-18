@@ -1,0 +1,55 @@
+# ============================================================
+# rschange 本机配置模板（入库）
+#
+# 用法：由 scripts/bootstrap.ps1 / bootstrap.sh 复制为 config/local.toml。
+#      config/local.toml 已被 git 忽略，可安全写入本机真实路径。
+#
+# 全部键均为可选：留空或删除即回落到 config/default.toml。
+# 路径可以是绝对路径，也可以相对仓库根（写成 ./ 开头）。
+#
+# 环境变量覆盖格式：RSCHANGE_<段名大写>__<键名大写>
+#   例：RSCHANGE_ENGINE__BUILD_DIR=./engine/build
+# ============================================================
+
+[runtime]
+# host = "127.0.0.1"
+# port = 8000
+# data_dir = "./data"
+# max_upload_mb = 500
+# allowed_origins = ["http://localhost:5173"]
+
+[engine]
+# ------------------------------------------------------------
+# runtime_dll_dir：原生依赖（GDAL 等）运行时 DLL 所在目录
+#
+# Windows + MSYS2 示例：
+#   runtime_dll_dir = "C:/Users/<用户名>/DevCode/msys64/mingw64/bin"
+#
+# Linux / macOS：
+#   留空。改用 shell 环境变量提供：
+#     export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+# ------------------------------------------------------------
+# runtime_dll_dir = ""
+
+# ------------------------------------------------------------
+# build_dir：_spatial 扩展（.pyd/.so）所在目录
+#   Phase 1：指向旧仓库的 build 目录，用于验证基线校验工具本身可用
+#   Phase 2 起：改为 "./engine/build"
+# ------------------------------------------------------------
+# build_dir = "./engine/build"
+
+[logging]
+# level = "INFO"        # DEBUG / INFO / WARNING / ERROR
+# format = "console"    # console | json
+
+[baseline]
+# fixtures_dir：黄金基线 fixture（before.tif / after.tif）所在目录
+# fixtures_dir = "./engine/tests/fixtures"
+
+# ------------------------------------------------------------
+# 以下两项仅 Phase 1 使用，Phase 2 完成后必须清空。
+# 作用：让基线校验工具在引擎尚未搬迁时，仍能对旧构建产物做校验，
+#      从而证明「校验工具本身的判定逻辑正确」。
+# ------------------------------------------------------------
+# legacy_build_dir = "C:/Users/<用户名>/source/My_Project/Remote_Sensing_Change_Detection/build"
+# legacy_fixtures_dir = "C:/Users/<用户名>/source/My_Project/Remote_Sensing_Change_Detection/src/core/tests"

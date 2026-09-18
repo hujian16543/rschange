@@ -1,0 +1,36 @@
+# ============================================================
+# rschange 跨平台默认配置（入库）
+#
+# 禁止在本文件写入任何机器相关绝对路径。
+# 本机专属值写在 config/local.toml（已被 git 忽略）。
+# 优先级：环境变量 RSCHANGE_<SECTION>__<KEY>  >  local.toml  >  default.toml
+# ============================================================
+
+[runtime]
+host = "127.0.0.1"
+port = 8000
+# 上传与输出根目录，相对仓库根解析
+data_dir = "./data"
+max_upload_mb = 500
+# CORS 白名单。禁止使用 "*" 与 allow_credentials 组合（浏览器规范禁止，等于白名单失效）
+allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+[engine]
+# 原生依赖（GDAL 及 MinGW 运行时）DLL 目录。
+# Windows 必填；Linux/macOS 留空，改由 LD_LIBRARY_PATH / DYLD_LIBRARY_PATH 提供。
+runtime_dll_dir = ""
+# _spatial 扩展所在目录。Phase 1 指向旧 build 以验证校验工具本身，
+# Phase 2 起改指 ./engine/build。
+build_dir = "./engine/build"
+
+[logging]
+level = "INFO"
+format = "console"
+
+[baseline]
+# 黄金基线 fixture（before/after 影像）
+fixtures_dir = "./engine/tests/fixtures"
+# 仅 Phase 1 使用：指向旧仓库的构建产物与 fixture 位置。
+# Phase 2 完成引擎搬迁后，这两项必须清空，改由 engine.build_dir / baseline.fixtures_dir 提供。
+legacy_build_dir = ""
+legacy_fixtures_dir = ""
