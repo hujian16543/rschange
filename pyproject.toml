@@ -1,0 +1,85 @@
+# ============================================================
+# 遥感变化检测平台 · uv 工作区根配置
+#
+# 职责边界：
+#   - 本文件 = 工作区根：声明 Python 版本约束、dev 依赖组、全部工具配置
+#   - backend/pyproject.toml = 成员包 rschange：只声明运行依赖
+#   - uv.lock = 唯一锁文件，覆盖全部成员，必须入库
+# ============================================================
+
+[project]
+name = "remote-sensing"
+version = "0.1.0"
+description = "遥感变化检测平台 · 工作区根（本体不打包，仅作工具链入口）"
+requires-python = ">=3.14,<3.15"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "httpx>=0.28",
+]
+
+[tool.uv]
+# 本工作区根自身不是待安装的包，只承载 workspace 与工具配置
+package = false
+
+# 禁止 uv 下载自管解释器。
+# 若允许下载，uv 会用新下载的 3.14.7 覆盖本机 DevCode 的 3.14.6，
+# 而现有 _spatial 扩展的 ABI 验证基线是 3.14.6。
+python-preference = "only-system"
+
+[tool.uv.workspace]
+members = ["backend"]
+
+# ------------------------------------------------------------
+# Ruff
+# ------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+src = ["backend/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ------------------------------------------------------------
+# mypy
+# ------------------------------------------------------------
+[tool.mypy]
+strict = true
+files = ["backend/src"]
+show_error_codes = true
+warn_unused_ignores = true
+
+# ------------------------------------------------------------
+# pytest
+# ------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["backend/src/rschange/tests", "tests"]
+pythonpath = ["backend/src"]
+addopts = "-q --strict-markers"
+markers = [
+    "baseline: 基线锚点断言（§7.1/7.2/7.3），漂移即回归缺陷",
+    "slow: 需要真实影像或完整流水线的用例",
+]
+
+# ------------------------------------------------------------
+# coverage
+# ------------------------------------------------------------
+[tool.coverage.run]
+source = ["backend/src/rschange"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

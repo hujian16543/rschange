@@ -1,0 +1,47 @@
+# ============================================================
+# rschange · 遥感变化检测后端（uv 工作区成员包）
+#
+# 依赖声明原则：
+#   - 只写「直接依赖」且不写死补丁版本；精确版本由根 uv.lock 锁定
+#   - 需要但可选的重型依赖进 [project.optional-dependencies]
+#     （例如 rasterio：仅在重新生成测试影像时需要，且 cp314 wheel 可用性不确定；
+#       正式流程改用 GDAL 直接写盘，不依赖 rasterio）
+#   - 禁止 readme 指向项目目录之外的文件（hatchling 会拒绝构建）
+# ============================================================
+
+[project]
+name = "rschange"
+version = "0.1.0"
+description = "遥感变化检测平台后端：FastAPI + C++ 空间引擎（_spatial）"
+requires-python = ">=3.14,<3.15"
+
+dependencies = [
+    # --- C++ 引擎编译期（CMake 通过 python -m nanobind --cmake_dir 定位）---
+    "nanobind>=2.4",
+    # --- Web 层 ---
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.20",
+    # --- 数值与空间 ---
+    "numpy>=2.1",
+    "scipy>=1.14",
+    "pyproj>=3.7",
+    "pillow>=11.0",
+]
+
+[project.optional-dependencies]
+# 仅在需要重新生成合成测试影像时安装：
+#   uv sync --all-packages --extra fixtures
+fixtures = ["rasterio>=1.4"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rschange"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/rschange", "pyproject.toml"]
