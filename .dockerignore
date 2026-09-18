@@ -1,0 +1,28 @@
+# 构建上下文裁剪：只保留构建必需内容
+.git/
+.github/
+.vscode/
+
+# 虚拟环境与缓存（容器内由 uv 重建）
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# C++ 构建产物（容器内由 CMake 重建）
+build/
+engine/build/
+
+# 前端依赖与产物
+node_modules/
+frontend/dist/
+
+# 机器相关配置：容器内由环境变量提供
+config/local.toml
+
+# 数据与文档（镜像不需要）
+data/
+docs/
+notebooks/
