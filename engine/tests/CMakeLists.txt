@@ -15,6 +15,7 @@ add_executable(
     test_contour.cpp
     test_geojson.cpp
     test_labeling.cpp
+    test_multi_region.cpp
     test_pipeline.cpp
     test_raster_io.cpp
     test_simplify.cpp

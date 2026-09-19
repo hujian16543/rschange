@@ -33,6 +33,20 @@
 ///
 /// 显式标注 `nb::ro` 后读写数组与只读数组都接受，且绑定的表述与引擎的真实
 /// 契约一致。实际影响：`np.frombuffer(...)`、只读内存映射等常见来源不再被拒。
+///
+/// 掩膜参数的隐式转换
+/// -----------------
+/// nanobind 的 ndarray 转换器在直接匹配失败时**默认回退到转换**：dtype 不符
+/// 就转型复制，布局不符就拷成 C 连续。这带来一个静默出错的路径——
+///
+///     mask_to_geojson(magnitude, geo)   # magnitude 是 CVA 的浮点幅度图
+///
+/// 调用方漏掉二值化时，引擎不会报错，而是把每个非零像素当作变化像素，返回
+/// 一份貌似合理的错误结果。浮点值还会被截断（300.0 -> 44，仍非零）。
+///
+/// 因此两个掩膜参数都加 `nb::noconvert()`：类型与布局不符即抛 `TypeError`，
+/// 由调用方显式转换。这使绑定的实际行为与上面声明的 `Uint8Mask` 一致——
+/// 只读、C 连续、`uint8` 三种约束缺一不可。
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
@@ -53,8 +67,12 @@ namespace nb = nanobind;
 
 namespace {
 
-/// 掩膜的维度描述。`bands == 1` 表示 2D 输入。
+/// 掩膜的维度描述。
+///
+/// `dims` 记录原始维度数，`bands == 1` 表示单波段。两者都需要：2D `(H, W)` 与
+/// 退化 3D `(1, H, W)` 的 `bands` 同为 1，只有 `dims` 能区分。
 struct MaskShape {
+    int dims = 0;
     int bands = 1;
     int height = 0;
     int width = 0;
@@ -68,10 +86,10 @@ using Uint8Mask = nb::ndarray<nb::numpy, std::uint8_t, nb::c_contig, nb::ro>;
 MaskShape parse_mask_shape(const Uint8Mask& mask) {
     const std::size_t ndim = mask.ndim();
     if (ndim == 2) {
-        return MaskShape{1, static_cast<int>(mask.shape(0)), static_cast<int>(mask.shape(1))};
+        return MaskShape{2, 1, static_cast<int>(mask.shape(0)), static_cast<int>(mask.shape(1))};
     }
     if (ndim == 3) {
-        return MaskShape{static_cast<int>(mask.shape(0)), static_cast<int>(mask.shape(1)),
+        return MaskShape{3, static_cast<int>(mask.shape(0)), static_cast<int>(mask.shape(1)),
                          static_cast<int>(mask.shape(2))};
     }
     throw std::invalid_argument("掩膜必须是 2D (H, W) 或 3D (B, H, W) 的 uint8 数组，实得 " +
@@ -140,7 +158,7 @@ NB_MODULE(_spatial, m) {
             spatial::write_raster(path, mask.data(), shape.width, shape.height, shape.bands,
                                   transform, projection);
         },
-        nb::arg("path"), nb::arg("mask"), nb::arg("geo"), nb::arg("projection"),
+        nb::arg("path"), nb::arg("mask").noconvert(), nb::arg("geo"), nb::arg("projection"),
         "把 uint8 掩膜写成 GeoTIFF。mask 可为 2D (H, W) 或 3D (B, H, W)");
 
     // ------------------------------------------------------------------
@@ -149,10 +167,15 @@ NB_MODULE(_spatial, m) {
     m.def(
         "mask_to_geojson",
         [](const Uint8Mask& mask, const std::vector<double>& geo) {
-            // 形状解析只此一处（parse_mask_shape），此处仅追加「必须单波段」的
+            // 形状解析只此一处（parse_mask_shape），此处仅追加「必须 2D」的
             // 约束。先前这里另写了一份 shape(0)/shape(1) 取值，属重复真相。
+            //
+            // 判据取 `dims != 2` 而非 `bands != 1`：退化 3D `(1, H, W)` 的
+            // bands 也是 1，按后者会被静默当作 2D 接受，与本函数声明的
+            // 「只接受 2D」矛盾。多波段影像里取单波段是常见操作，静默压维
+            // 会掩盖调用方漏写 `arr[0]` 的错误。
             const MaskShape shape = parse_mask_shape(mask);
-            if (shape.bands != 1) {
+            if (shape.dims != 2) {
                 throw std::invalid_argument(
                     "mask_to_geojson 只接受 2D (H, W) 的 uint8 掩膜，实得 3D (B, H, W)");
             }
@@ -164,6 +187,6 @@ NB_MODULE(_spatial, m) {
                 spatial::extract_regions(mask.data(), shape.width, shape.height, transform);
             return spatial::regions_to_geojson(regions, transform);
         },
-        nb::arg("mask"), nb::arg("geo"),
+        nb::arg("mask").noconvert(), nb::arg("geo"),
         "2D 变化掩膜 -> GeoJSON FeatureCollection 字符串");
 }
