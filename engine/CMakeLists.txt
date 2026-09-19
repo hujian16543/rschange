@@ -54,6 +54,7 @@ add_library(spatial::spatial ALIAS spatial)
 target_sources(
     spatial
     PRIVATE
+        src/contour.cpp
         src/gdal_init.cpp
         src/labeling.cpp
         src/raster_io.cpp
