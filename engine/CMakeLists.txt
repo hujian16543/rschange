@@ -55,6 +55,7 @@ target_sources(
     spatial
     PRIVATE
         src/gdal_init.cpp
+        src/labeling.cpp
         src/raster_io.cpp
         src/version.cpp
 )
