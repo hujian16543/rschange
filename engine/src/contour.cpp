@@ -38,17 +38,19 @@
 /// ----
 /// 采用标准的 Moore 邻域追踪，状态里显式带上「上一轮扫描的起始方向」：
 ///
-/// * 起点选定后，整条环（含起点）在返回前全部进入 `visited`；
+/// * 每条环由 `extract_boundary` 只发起一次追踪，回到起点即闭合返回，不存在
+///   「从另一个未访问像素重新起头」的路径 —— 旧实现在此处漏标起点，正是问题
+///   所在，故本实现不再依赖 `visited` 集合；
 /// * 每轮扫描从 `scan_from` 起顺时针试 8 个方向，取第一个属于区域的像素；
 /// * 走到下一个像素后，`scan_from` 重新计算为「上一个跳过的背景像素相对
 ///   新当前像素的方向」。该背景像素必然存在，因为扫描在命中之前试过的
 ///   方向都属于背景。
 ///
-/// 由此每个连通域只追踪一次外环，且追踪结束时可断言「环上所有像素均已
-/// 访问」。
+/// 由此每个连通域只得到一条闭合外环。
 
 #include "spatial/contour.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <unordered_set>
@@ -172,7 +174,6 @@ std::vector<PixelCoord> trace_ring(const PixelSet& region, const PixelCoord& sta
 ///
 /// 做法：在区域外接矩形内，从矩形四边上的背景像素出发做 4 邻域洪泛；
 /// 能到达矩形边界的背景像素属「外部背景」，剩下未被标记的即洞。
-/// 每个洞单独追踪一次得到一条内环。
 std::vector<std::vector<PixelCoord>> find_holes(const PixelSet& region, const Bounds& box) {
     const int rows = box.max_row - box.min_row + 1;
     const int cols = box.max_col - box.min_col + 1;
@@ -268,6 +269,41 @@ std::vector<std::vector<PixelCoord>> find_holes(const PixelSet& region, const Bo
     return holes;
 }
 
+/// 与洞相邻的区域像素（4 邻域），即区域的内边界。
+///
+/// 洞环取这一集合，而不是洞自身的背景像素，理由有两条：
+///
+/// 1. **采样一致。** 外环由区域像素的中心连成；内环若改由背景像素连成，
+///    两类环就不在同一套采样上，内环还会相对真实洞界内缩约一像素。
+/// 2. **一像素的洞原本会消失。** 这种洞只有一个背景像素，凑不出环，旧实现
+///    在 `size() < 3` 处直接跳过，输出里洞就不见了。
+std::vector<PixelCoord> pixels_around(const PixelSet& region, const std::vector<PixelCoord>& hole) {
+    constexpr int kNeighbourR[4] = {-1, 1, 0, 0};
+    constexpr int kNeighbourC[4] = {0, 0, -1, 1};
+
+    std::vector<PixelCoord> result;
+    result.reserve(hole.size() * 4);
+
+    for (const auto& p : hole) {
+        for (int k = 0; k < 4; ++k) {
+            const int r = p.row + kNeighbourR[k];
+            const int c = p.col + kNeighbourC[k];
+            // 洞像素本身属背景，故 `contains` 为真即已排除它们。
+            if (region.contains(r, c)) {
+                result.push_back(PixelCoord{r, c});
+            }
+        }
+    }
+
+    // 一个区域像素可能同时邻接洞的多个像素，去重后按 raster-scan 排序。
+    const auto by_scan_order = [](const PixelCoord& a, const PixelCoord& b) {
+        return (a.row != b.row) ? (a.row < b.row) : (a.col < b.col);
+    };
+    std::sort(result.begin(), result.end(), by_scan_order);
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
 }  // namespace
 
 Boundary extract_boundary(const std::vector<PixelCoord>& pixels) {
@@ -287,11 +323,14 @@ Boundary extract_boundary(const std::vector<PixelCoord>& pixels) {
     }
 
     for (const auto& hole : find_holes(region, bounds_of(pixels))) {
-        if (hole.size() < 3) {
+        // 内环取区域的内边界（见 pixels_around），因此即便洞只有一个像素
+        // 也能得到一条合法环。
+        const std::vector<PixelCoord> inner = pixels_around(region, hole);
+        if (inner.size() < 3) {
             continue;
         }
-        const PixelSet hole_pixels(hole);
-        auto ring = trace_ring(hole_pixels, raster_scan_first(hole), hole.size() * 8U + 64U);
+        const PixelSet inner_pixels(inner);
+        auto ring = trace_ring(inner_pixels, raster_scan_first(inner), inner.size() * 8U + 64U);
         if (ring.size() >= 3) {
             boundary.holes.push_back(std::move(ring));
         }

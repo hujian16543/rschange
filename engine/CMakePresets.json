@@ -1,0 +1,89 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "win-base",
+      "hidden": true,
+      "displayName": "Windows / MSYS2 mingw-w64 (Debug)",
+      "description": "需要环境变量 SPATIAL_MINGW_ROOT、SPATIAL_GDAL_ROOT、SPATIAL_PYTHON；本机取值见 CMakeUserPresets.json",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "$env{SPATIAL_MINGW_ROOT}/bin/gcc.exe",
+        "CMAKE_CXX_COMPILER": "$env{SPATIAL_MINGW_ROOT}/bin/g++.exe",
+        "SPATIAL_GDAL_ROOT": "$env{SPATIAL_GDAL_ROOT}",
+        "Python_EXECUTABLE": "$env{SPATIAL_PYTHON}"
+      }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "displayName": "Linux (Debug)",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "dev-win",
+      "inherits": "win-base"
+    },
+    {
+      "name": "dev-linux",
+      "inherits": "linux-base"
+    },
+    {
+      "name": "release-win",
+      "inherits": "win-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "release-linux",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev-win", "configurePreset": "dev-win" },
+    { "name": "dev-linux", "configurePreset": "dev-linux" },
+    { "name": "release-win", "configurePreset": "release-win" },
+    { "name": "release-linux", "configurePreset": "release-linux" }
+  ],
+  "testPresets": [
+    {
+      "name": "dev-win",
+      "configurePreset": "dev-win",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "dev-linux",
+      "configurePreset": "dev-linux",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release-win",
+      "configurePreset": "release-win",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release-linux",
+      "configurePreset": "release-linux",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

@@ -10,9 +10,11 @@
 /// * 裂缝处的几何特征被强制保留，哪怕它毫无特殊性；
 /// * 同一个形状只要换个起始像素，简化结果就会变，输出不可复现。
 ///
-/// 本实现采用闭曲线变体：先找出距 `ring[0]` 最远的顶点作为**对径锚点**，用它
-/// 把环拆成两条开曲线，各自跑标准 DP，再按原序合并保留点。锚点选取与起始
-/// 像素无关，因此结果只取决于环的几何形状。
+/// 本实现采用闭曲线变体：先在环上定出三个由几何决定的锚点，用它把环拆成
+/// 三段开曲线，各自跑标准 DP，再按原序合并保留点。锚点只由几何决定，因此
+/// 结果只取决于环的形状，与起始像素无关；又因为锚点有三个，任何容差都至少
+/// 留下一个三角形近似，也就不需要「简化过度就回退原环」这类破坏单调性的
+/// 兜底分支。
 
 #include "spatial/simplify.hpp"
 
@@ -115,45 +117,73 @@ std::vector<PixelCoord> simplify_boundary(const std::vector<PixelCoord>& ring, d
         return (logical + canonical) % count;
     };
 
-    // 对径锚点：逻辑序上距逻辑 0 号最远的顶点
-    std::size_t anchor = 0;
+    const PixelCoord origin = ring[physical(0)];
+
+    // 三个锚点。闭曲线 DP 至少要留下 3 个点，否则结果连多边形都构不成。
+    //
+    // 只取两个锚点时，容差一旦大到把中间顶点全滤掉，递归里就只剩这两个点；
+    // 实现只能回退原环 —— 输出于是随容差**非单调**跳变（实测同一八边形：
+    // 容差 1.5 得 4 个点，容差 4.0 反得 8 个点）。改取三个几何上分散的锚点
+    // 后，任何容差都至少留下一个三角形近似，回退分支随之消失。
+    //
+    // 锚点 1 = 逻辑 0 号，即 (row, col) 最小的顶点，与输入起点无关；
+    // 锚点 2 = 距锚点 1 最远的顶点；
+    // 锚点 3 = 距弦「锚点 1 — 锚点 2」最远的顶点。
+    // 三者都只由几何决定，故结果仍与起始像素无关。
+    std::size_t second = 1;
     double farthest_squared = -1.0;
     for (std::size_t logical = 1; logical < count; ++logical) {
         const PixelCoord& candidate = ring[physical(logical)];
-        const double dr = static_cast<double>(candidate.row) - static_cast<double>(ring[physical(0)].row);
-        const double dc = static_cast<double>(candidate.col) - static_cast<double>(ring[physical(0)].col);
+        const double dr = static_cast<double>(candidate.row) - static_cast<double>(origin.row);
+        const double dc = static_cast<double>(candidate.col) - static_cast<double>(origin.col);
         const double squared = (dr * dr) + (dc * dc);
         if (squared > farthest_squared) {
             farthest_squared = squared;
-            anchor = logical;
+            second = logical;
         }
     }
 
-    if (anchor == 0) {
-        return ring;  // 全部顶点重合，无从简化
+    std::size_t third = 0;
+    double farthest_offset = -1.0;
+    for (std::size_t logical = 1; logical < count; ++logical) {
+        if (logical == second) {
+            continue;
+        }
+        const double offset =
+            distance_to_segment(ring[physical(logical)], origin, ring[physical(second)]);
+        if (offset > farthest_offset) {
+            farthest_offset = offset;
+            third = logical;
+        }
     }
+
+    // 三个锚点互不相同，因此结果至少 3 点，不再需要「不足 3 点就回退原环」
+    // 那条会破坏单调性的分支。
+    const std::size_t low = (second < third) ? second : third;
+    const std::size_t high = (second < third) ? third : second;
 
     std::vector<bool> keep(count, false);
     keep[physical(0)] = true;
-    keep[physical(anchor)] = true;
+    keep[physical(low)] = true;
+    keep[physical(high)] = true;
 
-    // 第一段：逻辑 0 .. anchor
-    std::vector<std::size_t> forward;
-    forward.reserve(anchor + 1);
-    for (std::size_t logical = 0; logical <= anchor; ++logical) {
-        forward.push_back(physical(logical));
-    }
+    // 环被三个锚点拆成三段开曲线，各自跑标准 DP。`mark_kept` 只置位不清除，
+    // 相邻两段共享的锚点不会被后一段抹掉。
+    const auto segment = [&physical](std::size_t from, std::size_t to) {
+        std::vector<std::size_t> path;
+        path.reserve(to - from + 1);
+        for (std::size_t logical = from; logical <= to; ++logical) {
+            path.push_back(physical(logical));
+        }
+        return path;
+    };
 
-    // 第二段：逻辑 anchor .. count-1，再回到逻辑 0
-    std::vector<std::size_t> backward;
-    backward.reserve(count - anchor + 1);
-    for (std::size_t logical = anchor; logical < count; ++logical) {
-        backward.push_back(physical(logical));
-    }
-    backward.push_back(physical(0));
+    mark_kept(ring, segment(0, low), tolerance, keep);
+    mark_kept(ring, segment(low, high), tolerance, keep);
 
-    mark_kept(ring, forward, tolerance, keep);
-    mark_kept(ring, backward, tolerance, keep);
+    std::vector<std::size_t> closing = segment(high, count - 1);
+    closing.push_back(physical(0));
+    mark_kept(ring, closing, tolerance, keep);
 
     // 按原始顺序收集，使输出走向与输入一致
     std::vector<PixelCoord> simplified;
@@ -162,10 +192,6 @@ std::vector<PixelCoord> simplify_boundary(const std::vector<PixelCoord>& ring, d
         if (keep[i]) {
             simplified.push_back(ring[i]);
         }
-    }
-
-    if (simplified.size() < 3) {
-        return ring;  // 简化到不足以构成多边形，回退原环
     }
     return simplified;
 }
