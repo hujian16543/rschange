@@ -41,17 +41,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tomllib
 import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Final
 
 import numpy as np
 
-REPO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
+# scripts/ 就在脚本自身目录下（sys.path[0]），直接导入即可。
+from engine_env import REPO_ROOT, fixtures_dir, load_config, load_spatial
 
 # ============================================================================
 # 冻结参考实现 FROZEN REFERENCE v0
@@ -151,88 +149,11 @@ TARGET_AREA_SUM: Final = 720900.0
 
 # ============================================================================
 # 配置载入
+#
+# 分层配置的合并、相对路径解析、`_spatial` 的定位与加载，统一由
+# scripts/engine_env.py 提供（verify_bindings.py 也用同一份），
+# 避免两处配置优先级语义各自漂移。
 # ============================================================================
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    merged = dict(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = _deep_merge(merged[key], value)
-        else:
-            merged[key] = value
-    return merged
-
-
-def load_config() -> dict[str, Any]:
-    """优先级：RSCHANGE_<SECTION>__<KEY> > config/local.toml > config/default.toml"""
-    config: dict[str, Any] = {}
-    for name in ("default.toml", "local.toml"):
-        path = REPO_ROOT / "config" / name
-        if path.is_file():
-            with path.open("rb") as handle:
-                config = _deep_merge(config, tomllib.load(handle))
-
-    prefix = "RSCHANGE_"
-    for env_key, raw in os.environ.items():
-        if not env_key.startswith(prefix):
-            continue
-        parts = env_key[len(prefix) :].split("__")
-        if len(parts) != 2:
-            continue
-        section, key = parts[0].lower(), parts[1].lower()
-        value: Any = raw
-        lowered = raw.lower()
-        if lowered in ("true", "false"):
-            value = lowered == "true"
-        else:
-            try:
-                value = int(raw)
-            except ValueError:
-                pass
-        config.setdefault(section, {})[key] = value
-
-    return config
-
-
-def resolve_path(raw: str) -> Path:
-    """相对路径按仓库根解析；空字符串返回仓库根。"""
-    if not raw:
-        return REPO_ROOT
-    path = Path(raw)
-    return path if path.is_absolute() else (REPO_ROOT / path).resolve()
-
-
-def load_spatial(config: dict[str, Any]) -> tuple[Any, Path]:
-    """按配置定位并加载 _spatial 扩展。"""
-    engine = config.get("engine", {})
-    dll_dir = resolve_path(str(engine.get("runtime_dll_dir") or ""))
-    build_dir = resolve_path(str(engine.get("build_dir") or ""))
-
-    if not build_dir.is_dir():
-        raise SystemExit(
-            f"[配置错误] engine.build_dir 不存在：{build_dir}\n"
-            "  请检查 config/local.toml。Phase 1 应指向旧仓库的 build 目录。"
-        )
-
-    if os.name == "nt":
-        if dll_dir.is_dir():
-            os.add_dll_directory(str(dll_dir))
-        else:
-            print(f"[警告] engine.runtime_dll_dir 不是有效目录，已跳过：{dll_dir}")
-        os.add_dll_directory(str(build_dir))
-
-    if str(build_dir) not in sys.path:
-        sys.path.insert(0, str(build_dir))
-
-    try:
-        import _spatial  # type: ignore[import-not-found]
-    except ImportError as exc:  # pragma: no cover
-        raise SystemExit(
-            f"[加载失败] 无法 import _spatial（目录：{build_dir}）\n  原因：{exc}"
-        ) from exc
-
-    return _spatial, build_dir
 
 
 # ============================================================================
@@ -273,10 +194,9 @@ def main() -> int:  # noqa: C901
     config = load_config()
     spatial, build_dir = load_spatial(config)
 
-    baseline_cfg = config.get("baseline", {})
-    fixtures_dir = resolve_path(str(baseline_cfg.get("fixtures_dir") or ""))
-    before_path = fixtures_dir / "before.tif"
-    after_path = fixtures_dir / "after.tif"
+    fixtures = fixtures_dir(config)
+    before_path = fixtures / "before.tif"
+    after_path = fixtures / "after.tif"
 
     for path in (before_path, after_path):
         if not path.is_file():
@@ -381,8 +301,8 @@ def main() -> int:  # noqa: C901
     # 单连通域夹具覆盖不到两类语义：label 分配顺序（D-6）、多区域时的
     # 「一个 Region 一个 Feature」与退化区域剔除（D-7）。故另取一份几何完全
     # 人工指定的夹具，其期望值写在同名 JSON 里，来自几何定义本身。
-    multi_raw_path = fixtures_dir / "multi_region_mask.raw"
-    multi_meta_path = fixtures_dir / "multi_region_mask.json"
+    multi_raw_path = fixtures / "multi_region_mask.raw"
+    multi_meta_path = fixtures / "multi_region_mask.json"
     for path in (multi_raw_path, multi_meta_path):
         if not path.is_file():
             raise SystemExit(
