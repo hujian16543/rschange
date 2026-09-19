@@ -56,6 +56,7 @@ target_sources(
     PRIVATE
         src/contour.cpp
         src/gdal_init.cpp
+        src/geojson.cpp
         src/labeling.cpp
         src/raster_io.cpp
         src/simplify.cpp

@@ -30,8 +30,14 @@ struct GeoJsonOptions {
 ///
 /// 跳过规则（D-7）
 /// --------------
-/// 轮廓退化（顶点少于 3、或简化后不足以构成多边形）的区域直接跳过，
-/// **不产出** Feature，也不抛异常。
+/// 轮廓退化的区域直接跳过，**不产出** Feature，也不抛异常。退化含两种情形：
+///
+/// * 顶点少于 3，无法构成多边形；
+/// * 顶点全部共线（有向面积为 0）。一像素宽的细长结构按像素中心连成的环
+///   即属此类——它的几何不满足 OGC Simple Features 对 Polygon 的要求，
+///   交给 GEOS 会直接判 invalid。
+///
+/// 由此保证：输出的每一条几何都是合法的非退化多边形。
 ///
 /// @throws std::runtime_error 仅在 JSON 序列化本身失败时抛出
 SPATIAL_API std::string regions_to_geojson(const std::vector<Region>& regions,
