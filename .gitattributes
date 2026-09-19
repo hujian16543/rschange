@@ -20,6 +20,12 @@
 *.jpg   binary
 *.ico   binary
 
+# 栅格夹具（裸像素缓冲）：必须显式声明为二进制。
+# 仅靠 `* text=auto` 的启发式判定不可靠——它按「前 8 KB 是否含 NUL 字节」
+# 分类，而二值掩膜恰好以 0x00 为主才被判对。一旦夹具换成标签栅格，标签值
+# 13（0x0D，CR）就会出现，届时该文件会被当作文本做行尾转换而遭破坏。
+*.raw   binary
+
 # 锁文件：标记为生成物，避免 code review 噪声
 uv.lock             text eol=lf linguist-generated=true
 package-lock.json   text eol=lf linguist-generated=true

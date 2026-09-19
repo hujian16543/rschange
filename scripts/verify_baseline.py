@@ -17,10 +17,23 @@
 3. **期望状态由 --phase 决定。**
    Phase 1：缺陷尚未修复，故 §7.2 / §7.3 **必须失败**——失败才是正确结果。
    Phase 2 起：缺陷已修复，三项必须全部通过。
+   注意：`--phase 1` 只对**旧引擎的构建产物**有意义，须把 config 的
+   `engine.build_dir` 指回旧仓库的 build 目录。Phase 1 的判定结果已归档在
+   `docs/verification/phase-1.md`。
+
+夹具
+----
+| 夹具                       | 覆盖判据                                                     |
+|----------------------------|--------------------------------------------------------------|
+| `change_mask.{raw,json}`   | §7.1 不变量、§7.2 缺陷基线、§7.3 语义断言（单连通域）        |
+| `multi_region_mask.{raw,json}` | §7.3 的 label 分配顺序、多区域「一个 Region 一个 Feature」、退化轮廓剔除、洞环合法性 |
+
+`multi_region_mask` 的期望值由几何定义直接写出（`scripts/make_multi_region_fixture.py`），
+连通域个数与首次出现顺序另由 scipy 独立计算，构成「几何定义 ↔ scipy ↔ 引擎」三方对照。
 
 用法
 ----
-    uv run python scripts/verify_baseline.py --phase 1
+    uv run python scripts/verify_baseline.py --phase 2
     uv run python scripts/verify_baseline.py --phase 2 --verbose
 """
 
@@ -28,16 +41,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tomllib
+import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Final
 
 import numpy as np
 
-REPO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
+# scripts/ 就在脚本自身目录下（sys.path[0]），直接导入即可。
+from engine_env import REPO_ROOT, fixtures_dir, load_config, load_spatial
 
 # ============================================================================
 # 冻结参考实现 FROZEN REFERENCE v0
@@ -137,88 +149,11 @@ TARGET_AREA_SUM: Final = 720900.0
 
 # ============================================================================
 # 配置载入
+#
+# 分层配置的合并、相对路径解析、`_spatial` 的定位与加载，统一由
+# scripts/engine_env.py 提供（verify_bindings.py 也用同一份），
+# 避免两处配置优先级语义各自漂移。
 # ============================================================================
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    merged = dict(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = _deep_merge(merged[key], value)
-        else:
-            merged[key] = value
-    return merged
-
-
-def load_config() -> dict[str, Any]:
-    """优先级：RSCHANGE_<SECTION>__<KEY> > config/local.toml > config/default.toml"""
-    config: dict[str, Any] = {}
-    for name in ("default.toml", "local.toml"):
-        path = REPO_ROOT / "config" / name
-        if path.is_file():
-            with path.open("rb") as handle:
-                config = _deep_merge(config, tomllib.load(handle))
-
-    prefix = "RSCHANGE_"
-    for env_key, raw in os.environ.items():
-        if not env_key.startswith(prefix):
-            continue
-        parts = env_key[len(prefix) :].split("__")
-        if len(parts) != 2:
-            continue
-        section, key = parts[0].lower(), parts[1].lower()
-        value: Any = raw
-        lowered = raw.lower()
-        if lowered in ("true", "false"):
-            value = lowered == "true"
-        else:
-            try:
-                value = int(raw)
-            except ValueError:
-                pass
-        config.setdefault(section, {})[key] = value
-
-    return config
-
-
-def resolve_path(raw: str) -> Path:
-    """相对路径按仓库根解析；空字符串返回仓库根。"""
-    if not raw:
-        return REPO_ROOT
-    path = Path(raw)
-    return path if path.is_absolute() else (REPO_ROOT / path).resolve()
-
-
-def load_spatial(config: dict[str, Any]) -> tuple[Any, Path]:
-    """按配置定位并加载 _spatial 扩展。"""
-    engine = config.get("engine", {})
-    dll_dir = resolve_path(str(engine.get("runtime_dll_dir") or ""))
-    build_dir = resolve_path(str(engine.get("build_dir") or ""))
-
-    if not build_dir.is_dir():
-        raise SystemExit(
-            f"[配置错误] engine.build_dir 不存在：{build_dir}\n"
-            "  请检查 config/local.toml。Phase 1 应指向旧仓库的 build 目录。"
-        )
-
-    if os.name == "nt":
-        if dll_dir.is_dir():
-            os.add_dll_directory(str(dll_dir))
-        else:
-            print(f"[警告] engine.runtime_dll_dir 不是有效目录，已跳过：{dll_dir}")
-        os.add_dll_directory(str(build_dir))
-
-    if str(build_dir) not in sys.path:
-        sys.path.insert(0, str(build_dir))
-
-    try:
-        import _spatial  # type: ignore[import-not-found]
-    except ImportError as exc:  # pragma: no cover
-        raise SystemExit(
-            f"[加载失败] 无法 import _spatial（目录：{build_dir}）\n  原因：{exc}"
-        ) from exc
-
-    return _spatial, build_dir
 
 
 # ============================================================================
@@ -259,10 +194,9 @@ def main() -> int:  # noqa: C901
     config = load_config()
     spatial, build_dir = load_spatial(config)
 
-    baseline_cfg = config.get("baseline", {})
-    fixtures_dir = resolve_path(str(baseline_cfg.get("fixtures_dir") or ""))
-    before_path = fixtures_dir / "before.tif"
-    after_path = fixtures_dir / "after.tif"
+    fixtures = fixtures_dir(config)
+    before_path = fixtures / "before.tif"
+    after_path = fixtures / "after.tif"
 
     for path in (before_path, after_path):
         if not path.is_file():
@@ -362,32 +296,155 @@ def main() -> int:  # noqa: C901
     add(Check("7.3", "面积合计 == 像素数 × 单像元面积",
               fmt(expected_area_sem, 1), fmt(area_sum, 1),
               abs(area_sum - expected_area_sem) <= AREA_TOL))
-    add(Check("7.3", "多区域 label 分配顺序确定", "—", "—", False, skipped=True,
-              note="当前 fixture 为单连通域，无法覆盖；Phase 2 补多区域样本后启用"))
-    add(Check("7.3", "多边形可被 GEOS 解析且不自交", "—", "—", False, skipped=True,
-              note="需 shapely，Phase 2 引入后启用；环闭合本身已归入 §7.1 不变量"))
+
+    # ================================================= 多区域夹具（§7.3 判据）
+    # 单连通域夹具覆盖不到两类语义：label 分配顺序（D-6）、多区域时的
+    # 「一个 Region 一个 Feature」与退化区域剔除（D-7）。故另取一份几何完全
+    # 人工指定的夹具，其期望值写在同名 JSON 里，来自几何定义本身。
+    multi_raw_path = fixtures / "multi_region_mask.raw"
+    multi_meta_path = fixtures / "multi_region_mask.json"
+    for path in (multi_raw_path, multi_meta_path):
+        if not path.is_file():
+            raise SystemExit(
+                f"[配置错误] 多区域夹具不存在：{path}\n"
+                "  该夹具承载 §7.3 的顺序与几何合法性判据，必须存在。\n"
+                "  生成方式：uv run python scripts/make_multi_region_fixture.py"
+            )
+
+    multi_meta = json.loads(multi_meta_path.read_text(encoding="utf-8"))
+    multi_width = int(multi_meta["width"])
+    multi_height = int(multi_meta["height"])
+    multi_mask = np.frombuffer(multi_raw_path.read_bytes(), dtype=np.uint8).reshape(
+        multi_height, multi_width
+    )
+
+    # 连通域个数与「首次出现顺序」全部由 scipy 独立计算，不依赖被测代码：
+    # 逐像素按行主序扫描，记录各连通域首次出现的位置，再按该位置排序。
+    multi_labeled, multi_components = ndimage.label(multi_mask)
+    multi_flat = multi_labeled.ravel()
+    first_seen: dict[int, int] = {}
+    for position in np.flatnonzero(multi_flat):
+        first_seen.setdefault(int(multi_flat[position]), int(position))
+    scan_order = sorted(first_seen, key=lambda label: first_seen[label])
+    scipy_counts = [int((multi_labeled == label).sum()) for label in scan_order]
+
+    meta_regions = multi_meta["regions"]
+    meta_counts = [int(region["pixel_count"]) for region in meta_regions]
+    kept_labels = [int(r["label"]) for r in meta_regions if r["expected_feature"]]
+    dropped_counts = [int(r["pixel_count"]) for r in meta_regions if not r["expected_feature"]]
+
+    # 用「像素数序列」比对顺序的前提是各区域像素数互不相同，否则序列相等
+    # 不足以判定顺序相同。此处显式断言，避免夹具被改动后判据悄悄失效。
+    if len(set(meta_counts)) != len(meta_counts):
+        raise SystemExit("[夹具错误] 多区域夹具存在像素数相同的区域，无法据像素数序列判定顺序")
+
+    # 三方对照：几何定义（元数据）↔ scipy ↔ 引擎。
+    add(Check("7.3", "夹具元数据顺序 == scipy 首次出现顺序",
+              fmt(meta_counts), fmt(scipy_counts),
+              meta_counts == scipy_counts,
+              note="元数据由几何定义直接写出，与任何实现无关"))
+
+    multi_geojson = spatial.mask_to_geojson(multi_mask, multi_meta["geo_transform"])
+    multi_features = json.loads(multi_geojson).get("features", [])
+    engine_labels = [int(f["properties"]["label"]) for f in multi_features]
+    engine_counts = [int(f["properties"]["pixel_count"]) for f in multi_features]
+    expected_counts = [c for c in scipy_counts if c not in dropped_counts]
+
+    add(Check("7.3", "多区域 label 序列（退化项剔除后）", fmt(kept_labels), fmt(engine_labels),
+              engine_labels == kept_labels,
+              note=f"连通域 {multi_components} 个，其中 {len(dropped_counts)} 个退化轮廓不产出 Feature"))
+    add(Check("7.3", "多区域 Feature 顺序 == scipy 顺序",
+              fmt(expected_counts), fmt(engine_counts),
+              engine_counts == expected_counts,
+              note="期望顺序为各连通域首次出现的 raster-scan 位置序；旧实现用 unordered_map 分组，迭代序未定义（D-6）"))
+
+    # ------------------------------------------------- 几何合法性（GEOS 判定）
+    # 引擎自己的 `forms_polygon` 只判「顶点数够且不共线」，那是 GEOS 要求的
+    # 必要条件而非充分条件。真正的判据是让 GEOS 解析一遍：合法、不自交、
+    # 面积为正、环的类型正确。
+    try:
+        from shapely.geometry import LineString
+        from shapely.geometry import shape as shapely_shape
+    except ImportError as exc:  # pragma: no cover
+        raise SystemExit(
+            "[依赖缺失] 几何合法性判据需要 shapely。\n  安装：uv sync --group dev\n"
+            f"  原因：{exc}"
+        ) from exc
+
+    audit_targets: list[tuple[str, list[dict[str, Any]]]] = [
+        ("基线", features),
+        ("多区域", multi_features),
+    ]
+    total_features = sum(len(items) for _, items in audit_targets)
+    violations: list[str] = []
+    hole_total = 0
+    geometry_area = 0.0
+
+    for tag, items in audit_targets:
+        for position, feature in enumerate(items):
+            label = feature.get("properties", {}).get("label", position)
+            rings = feature.get("geometry", {}).get("coordinates", [])
+            polygon = shapely_shape(feature["geometry"])
+            hole_total += len(rings) - 1
+            geometry_area += float(polygon.area)
+
+            if polygon.geom_type != "Polygon":
+                violations.append(f"{tag}[{label}] 类型为 {polygon.geom_type}")
+            if not polygon.is_valid:
+                violations.append(f"{tag}[{label}] GEOS 判 invalid")
+            if polygon.area <= 0:
+                violations.append(f"{tag}[{label}] 面积非正")
+            for ring_index, ring in enumerate(rings):
+                if not LineString(ring).is_simple:
+                    violations.append(f"{tag}[{label}] 第 {ring_index} 环自交")
+
+    reported_area = area_sum + sum(float(f["properties"]["area_m2"]) for f in multi_features)
+    deviation = (geometry_area - reported_area) / reported_area * 100.0 if reported_area else 0.0
+
+    add(Check("7.3", "多边形可被 GEOS 解析且不自交", f"全部合法（{total_features} 个）",
+              f"{total_features - len(violations)}/{total_features} 合法",
+              not violations,
+              note=(f"洞环合计 {hole_total} 个；几何面积合计 {fmt(geometry_area, 1)} m²，"
+                    f"上报面积合计 {fmt(reported_area, 1)} m²，偏差 {deviation:.2f}%"
+                    "（已声明约定：环取像素中心，故几何面积为内接多边形）"
+                    + ("；" + "；".join(violations[:3]) if violations else ""))))
 
     # ============================================================ 输出
     phase = args.phase
     print()
-    print("=" * 108)
+    print("=" * 112)
     print(f"rschange 黄金基线校验  ·  仓库根 {REPO_ROOT}")
     print(f"引擎目录 {build_dir}")
     print(f"期望模式 {'Phase 1：§7.1 应通过，§7.2/7.3 应失败' if phase <= 1 else 'Phase 2+：全部应通过'}")
-    print("=" * 108)
-    print(f"{'组':<5}{'判定项':<38}{'期望':<26}{'实际':<26}{'结果':<6}备注")
-    print("-" * 108)
+    print("=" * 112)
+    def pad(text: str, width: int) -> str:
+        """按终端显示宽度左对齐补齐：CJK 字符占两列，超宽则截断。"""
+        clipped = text
+        display = 0
+        for index, char in enumerate(text):
+            display += 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+            if display > width:
+                clipped = text[:index]
+                break
+        return clipped + " " * max(0, width - display)
+
+    print(pad("组", 5) + pad("判定项", 40) + pad("期望", 30) + pad("实际", 30) + pad("结果", 7) + "备注")
+    print("-" * 112)
 
     for check in checks:
         if check.skipped:
             result = "SKIP"
         else:
             result = "PASS" if check.passed else "FAIL"
-        name = check.name[:36]
-        exp = check.expected[:24]
-        act = check.actual[:24]
-        print(f"{check.group:<5}{name:<38}{exp:<26}{act:<26}{result:<6}{check.note}")
-    print("-" * 108)
+        print(
+            pad(check.group, 5)
+            + pad(check.name, 40)
+            + pad(check.expected, 30)
+            + pad(check.actual, 30)
+            + pad(result, 7)
+            + check.note
+        )
+    print("-" * 112)
 
     # 期望达成度：Phase 1 要求 §7.2/§7.3 失败；Phase >=2 要求全部通过
     def group_status(group: str) -> tuple[int, int]:

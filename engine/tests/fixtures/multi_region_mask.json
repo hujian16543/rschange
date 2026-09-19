@@ -1,0 +1,92 @@
+{
+  "width": 120,
+  "height": 64,
+  "dtype": "uint8",
+  "provenance": "由 scripts/make_multi_region_fixture.py 依 LAYOUT 人工指定几何生成。期望值来自几何定义本身，与任何引擎实现无关，故可作独立对照基准。",
+  "geo_transform": [
+    500000.0,
+    10.0,
+    0.0,
+    4000000.0,
+    0.0,
+    -10.0
+  ],
+  "pixel_area_m2": 100.0,
+  "simplify_tolerance": 2.0,
+  "changed_pixels": 663,
+  "components": 6,
+  "degenerate_components": 1,
+  "expected_feature_count": 5,
+  "expected_pixels_in_features": 658,
+  "expected_area_m2": 65800.0,
+  "expected_holes_total": 1,
+  "note": "label 顺序必须等于各区域首次出现位置 (first_row, first_col) 的字典序。blob_f 与 blob_c 首次出现同行，故顺序由列号决定：blob_f 在前。line_e 为退化轮廓，必须被剔除，因此 Feature 数为 5 而连通域数为 6。",
+  "regions": [
+    {
+      "label": 1,
+      "name": "blob_a",
+      "kind": "solid",
+      "first_row": 4,
+      "first_col": 6,
+      "first_index": 486,
+      "pixel_count": 100,
+      "holes": 0,
+      "expected_feature": true
+    },
+    {
+      "label": 2,
+      "name": "blob_b",
+      "kind": "solid",
+      "first_row": 6,
+      "first_col": 40,
+      "first_index": 760,
+      "pixel_count": 200,
+      "holes": 0,
+      "expected_feature": true
+    },
+    {
+      "label": 3,
+      "name": "blob_f",
+      "kind": "solid",
+      "first_row": 26,
+      "first_col": 8,
+      "first_index": 3128,
+      "pixel_count": 35,
+      "holes": 0,
+      "expected_feature": true
+    },
+    {
+      "label": 4,
+      "name": "blob_c",
+      "kind": "solid",
+      "first_row": 26,
+      "first_col": 96,
+      "first_index": 3216,
+      "pixel_count": 138,
+      "holes": 0,
+      "expected_feature": true
+    },
+    {
+      "label": 5,
+      "name": "ring_d",
+      "kind": "ring",
+      "first_row": 40,
+      "first_col": 20,
+      "first_index": 4820,
+      "pixel_count": 185,
+      "holes": 1,
+      "expected_feature": true
+    },
+    {
+      "label": 6,
+      "name": "line_e",
+      "kind": "degenerate_line",
+      "first_row": 56,
+      "first_col": 100,
+      "first_index": 6820,
+      "pixel_count": 5,
+      "holes": 0,
+      "expected_feature": false
+    }
+  ]
+}
