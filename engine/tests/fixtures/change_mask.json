@@ -1,0 +1,19 @@
+{
+  "width": 256,
+  "height": 256,
+  "dtype": "uint8",
+  "provenance": "before.tif / after.tif 经冻结的参考实现做 CVA + Otsu 得到的变化掩膜；reference 实现为 Phase 2 重写前的 Python 版本，仅作验收对照，不在本仓库路径中。",
+  "otsu_threshold": 5.916767423962816,
+  "changed_pixels": 7209,
+  "components": 1,
+  "area_m2": 720900.0,
+  "pixel_area_m2": 100.0,
+  "geo_transform": [500000.0, 10.0, 0.0, 4000000.0, 0.0, -10.0],
+  "acceptance": {
+    "feature_count": 1,
+    "legacy_feature_count": 2,
+    "area_m2": 720900.0,
+    "legacy_area_m2": 1441800.0,
+    "note": "旧实现把单连通域的边界劈成 2 段弧，于是产出 2 个 Feature 并把 Region 级面积重复计 2 次。"
+  }
+}

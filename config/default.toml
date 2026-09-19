@@ -19,9 +19,10 @@ allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 # 原生依赖（GDAL 及 MinGW 运行时）DLL 目录。
 # Windows 必填；Linux/macOS 留空，改由 LD_LIBRARY_PATH / DYLD_LIBRARY_PATH 提供。
 runtime_dll_dir = ""
-# _spatial 扩展所在目录。Phase 1 指向旧 build 以验证校验工具本身，
-# Phase 2 起改指 ./engine/build。
-build_dir = "./engine/build"
+# _spatial 扩展所在目录。必须与 CMake 预设的输出目录一致，即
+# engine/build/<预设名>（预设名见 engine/CMakePresets.json）。
+# 本机取值写在 config/local.toml。
+build_dir = "./engine/build/dev-win"
 
 [logging]
 level = "INFO"
