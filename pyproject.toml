@@ -21,6 +21,9 @@ dev = [
     "ruff>=0.9",
     "mypy>=1.14",
     "httpx>=0.28",
+    # §7.3「多边形可被 GEOS 解析且不自交」的独立判定依据。
+    # 与 numpy/scipy 同属验证工具，不入 rschange 的运行依赖。
+    "shapely>=2.0",
 ]
 
 [tool.uv]
