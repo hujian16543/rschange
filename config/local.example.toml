@@ -1,14 +1,27 @@
 # ============================================================
 # rschange 本机配置模板（入库）
 #
-# 用法：由 scripts/bootstrap.ps1 / bootstrap.sh 复制为 config/local.toml。
-#      config/local.toml 已被 git 忽略，可安全写入本机真实路径。
+# 用法
+# ----
+# scripts/bootstrap.ps1 / bootstrap.sh 的第 6 步会把本文件复制为
+# config/local.toml（目标已存在则不覆盖）。该目标文件已被 git 忽略，可安全
+# 写入本机真实路径。
+#
+# 注意：本模板的键**全部处于注释状态**。照抄本文件得到的是一份「全部回落到
+# config/default.toml」的空配置，其中 engine.runtime_dll_dir 为空。
+#
+# Windows 必读
+# ------------
+# engine.runtime_dll_dir 在 Windows 上是**必填项**：_spatial 扩展依赖 GDAL 与
+# MinGW 运行时（libgdal-*.dll、libstdc++-6.dll 等），PE 加载器不会自动去
+# MSYS2 的 bin 目录里找。留空即 import _spatial 报「找不到指定模块」。
+# Linux / macOS 留空，改由 LD_LIBRARY_PATH / DYLD_LIBRARY_PATH 提供。
 #
 # 全部键均为可选：留空或删除即回落到 config/default.toml。
 # 路径可以是绝对路径，也可以相对仓库根（写成 ./ 开头）。
 #
 # 环境变量覆盖格式：RSCHANGE_<段名大写>__<键名大写>
-#   例：RSCHANGE_ENGINE__BUILD_DIR=./engine/build
+#   例：RSCHANGE_ENGINE__BUILD_DIR=./engine/build/dev-win
 # ============================================================
 
 [runtime]
@@ -22,6 +35,8 @@
 # ------------------------------------------------------------
 # runtime_dll_dir：原生依赖（GDAL 等）运行时 DLL 所在目录
 #
+# **Windows 必填。** 留空则 import _spatial 失败，原因见文件头。
+#
 # Windows + MSYS2 示例：
 #   runtime_dll_dir = "C:/Users/<用户名>/DevCode/msys64/mingw64/bin"
 #
@@ -33,23 +48,35 @@
 
 # ------------------------------------------------------------
 # build_dir：_spatial 扩展（.pyd/.so）所在目录
-#   Phase 1：指向旧仓库的 build 目录，用于验证基线校验工具本身可用
-#   Phase 2 起：改为 "./engine/build"
+#
+# 必须与 CMake 预设的输出目录一致。基预设 base 的 binaryDir 是
+# ${sourceDir}/build/${presetName}，因此：
+#   dev-win / release-win（入库预设） -> ./engine/build/dev-win
+#   dev-linux / release-linux         -> ./engine/build/dev-linux
+#   local-win（本机预设，不入库）      -> ./engine/build/dev-win
+#
+# 下面给出的默认值适用于本机预设与 Windows CI；Linux CI 的构建产物落在
+# ./engine/build/dev-linux，须相应修改。预设定义见 engine/CMakePresets.json。
+#
+# 写错的典型症状：import _spatial 失败，或读到上一阶段的陈旧扩展。
 # ------------------------------------------------------------
-# build_dir = "./engine/build"
+# build_dir = "./engine/build/dev-win"
 
 [logging]
 # level = "INFO"        # DEBUG / INFO / WARNING / ERROR
 # format = "console"    # console | json
 
 [baseline]
-# fixtures_dir：黄金基线 fixture（before.tif / after.tif）所在目录
+# fixtures_dir：黄金基线 fixture（before.tif / after.tif、变更掩膜）所在目录
 # fixtures_dir = "./engine/tests/fixtures"
 
 # ------------------------------------------------------------
-# 以下两项仅 Phase 1 使用，Phase 2 完成后必须清空。
-# 作用：让基线校验工具在引擎尚未搬迁时，仍能对旧构建产物做校验，
-#      从而证明「校验工具本身的判定逻辑正确」。
+# 以下两项仅 Phase 1 使用，Phase 2 起必须保持为空。
+#
+# 作用：让基线校验工具在引擎尚未搬迁时，仍能对旧构建产物做校验，从而证明
+#      「校验工具本身的判定逻辑正确」。Phase 2 已完成引擎搬迁，故清空。
+# config/default.toml 中这两项已声明为空字符串；本模板不再给出示例值——
+#      给出示例值会让人误以为仍可填写。
 # ------------------------------------------------------------
-# legacy_build_dir = "C:/Users/<用户名>/source/My_Project/Remote_Sensing_Change_Detection/build"
-# legacy_fixtures_dir = "C:/Users/<用户名>/source/My_Project/Remote_Sensing_Change_Detection/src/core/tests"
+# legacy_build_dir = ""
+# legacy_fixtures_dir = ""
