@@ -38,6 +38,7 @@ __all__ = [
     "BaselineSettings",
     "EngineSettings",
     "LoggingSettings",
+    "PostprocessSettings",
     "RuntimeSettings",
     "Settings",
     "get_settings",
@@ -164,6 +165,21 @@ class LoggingSettings(_StrictModel):
     format: Literal["console", "json"] = "console"
 
 
+class PostprocessSettings(_StrictModel):
+    """掩膜后处理参数。
+
+    旧实现把这两项写死在算法模块里（`min_size` 甚至是函数默认值），使「调一下
+    最小连通面积试试效果」必须改代码。提为配置后，改 `local.toml` 或设
+    `RSCHANGE_POSTPROCESS__MIN_SIZE=50` 即可。
+    """
+
+    min_size: int = Field(default=30, ge=0)
+    """连通块最小像素数。判定是「严格大于」，即**不超过**该值的块被剔除。"""
+
+    structure_size: int = Field(default=3, ge=1)
+    """闭运算结构元边长（像素）。"""
+
+
 class BaselineSettings(_StrictModel):
     """黄金基线夹具定位。"""
 
@@ -189,8 +205,8 @@ class BaselineSettings(_StrictModel):
 class Settings(BaseSettings):
     """应用配置聚合根。
 
-    `repo_root` 不在 toml 中，由 `RSCHANGE_REPO_ROOT` 或路径推导给出；其余四个
-    分组分别对应 `config/default.toml` 的四个 TOML 表。
+    `repo_root` 不在 toml 中，由 `RSCHANGE_REPO_ROOT` 或路径推导给出；其余分组
+    分别对应 `config/default.toml` 的各个 TOML 表。
 
     `extra="forbid"`：TOML 里出现模型未声明的键即报错。配置项少且明确，拼写
     错误在启动期失败远比被静默忽略好——后者表现为「我改了配置但没生效」。
@@ -207,6 +223,7 @@ class Settings(BaseSettings):
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
     engine: EngineSettings = Field(default_factory=EngineSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    postprocess: PostprocessSettings = Field(default_factory=PostprocessSettings)
     baseline: BaselineSettings = Field(default_factory=BaselineSettings)
 
     @classmethod
