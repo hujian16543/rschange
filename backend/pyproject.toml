@@ -11,9 +11,12 @@
 
 [project]
 name = "rschange"
-version = "0.1.0"
+version = "0.3.0"
 description = "遥感变化检测平台后端：FastAPI + C++ 空间引擎（_spatial）"
 requires-python = ">=3.14,<3.15"
+authors = [{ name = "胡建" }]
+# 私有包：显式标记不得上传，避免误执行 `uv publish` 把内部代码推到 PyPI。
+classifiers = ["Private :: Do Not Upload"]
 
 dependencies = [
     # --- C++ 引擎编译期（CMake 通过 python -m nanobind --cmake_dir 定位）---
@@ -42,6 +45,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rschange"]
+# 测试不进 wheel：它们不是运行时代码。sdist（见下）仍包含 tests，
+# 因此从源码检出后可直接跑 pytest，而安装后的包不带测试。
+exclude = ["src/rschange/tests"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/rschange", "pyproject.toml"]

@@ -28,6 +28,14 @@ build_dir = "./engine/build/dev-win"
 level = "INFO"
 format = "console"
 
+[postprocess]
+# 掩膜后处理（形态学）。
+# min_size：连通块像素数**不超过**该值即被剔除（判定为严格大于）。
+#   调大 -> 更激进地去除碎斑，但也可能误删真实的小面积变化。
+min_size = 30
+# structure_size：闭运算结构元边长（像素）。1 表示不做闭运算。
+structure_size = 3
+
 [baseline]
 # 黄金基线 fixture（before/after 影像）
 fixtures_dir = "./engine/tests/fixtures"
