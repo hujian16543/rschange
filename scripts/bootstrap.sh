@@ -114,12 +114,36 @@ else
   ok "已从 local.example.toml 生成 config/local.toml（该文件已被 git 忽略）"
 fi
 
+# 模板里的键全部处于注释状态，engine.runtime_dll_dir 因而为空。Windows 上该项
+# 是必填的：_spatial 依赖 libgdal-*.dll 与 libstdc++-6.dll，PE 加载器不会去
+# MSYS2 的 bin 目录里找。本脚本不推测该路径，只登记待办。
+DLL_DIR="$(sed -n 's/^[[:space:]]*runtime_dll_dir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$LOCAL_TOML" | head -n1 || true)"
+if [ -z "$DLL_DIR" ]; then
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      printf '\n      待办  config/local.toml 的 engine.runtime_dll_dir 尚未填写\n'
+      printf '            Windows 必填，留空则 import _spatial 报「找不到指定模块」。\n'
+      printf '            路径由本机 MSYS2 安装位置决定，本脚本不作推测。示例：\n'
+      printf '              runtime_dll_dir = "C:/Users/<用户名>/DevCode/msys64/mingw64/bin"\n'
+      ;;
+    *)
+      printf '\n      提示  engine.runtime_dll_dir 为空；Linux / macOS 留空即正确。\n'
+      ;;
+  esac
+fi
+
 # --- 7 ---------------------------------------------------------------------
 step 7 "下一步"
 printf '\n  环境就绪。后续命令一律走 uv：\n'
-printf '    uv run python scripts/verify_baseline.py --phase 1\n'
+printf '    uv run python scripts/verify_baseline.py --phase 2\n'
+printf '    uv run python scripts/verify_config.py\n'
 printf '    uv run pytest\n'
-printf '    uv run ruff check backend/\n'
+printf '    uv run ruff check backend/ scripts/\n'
+printf '    uv run ruff format --check backend/ scripts/\n'
 printf '    uv run mypy\n\n'
+printf '  编译 C++ 引擎（Phase 2 起，无 build-engine.sh，直接用预设）：\n'
+printf '    (cd engine && cmake --preset local-win)                       # 配置\n'
+printf '    cmake --build engine/build/dev-win                            # 构建\n'
+printf '    ctest --test-dir engine/build/dev-win --output-on-failure     # 38 项单测\n\n'
 
 exit 0
