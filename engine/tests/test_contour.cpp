@@ -1,14 +1,27 @@
 /// @file test_contour.cpp
-/// @brief Moore 邻域边界追踪：单连通域只出一条闭合外环（D-2）、洞环提取、
-///        退化输入的空结果约定（D-7）。
+/// @brief 沿像素边界追踪（crack following）：单连通域只出一条闭合外环（D-2）、
+///        洞环提取、退化输入的空结果约定（D-7），以及几何面积恒等式。
 ///
-/// 判据刻意不引用被测实现：边界像素集合由测试独立算出，再与追踪结果比对。
-/// 「外环被打断成多段弧」会使闭合性断言与集合相等断言同时失败。
+/// 判据刻意不引用被测实现：格点集合、顶点数、有向面积均由测试独立算出，
+/// 再与追踪结果比对。「外环被打断成多段弧」会使闭合性断言与集合相等断言
+/// 同时失败。
+///
+/// 几何基准（Phase 2.1 起）
+/// ----------------------
+/// 环的顶点是**角点格点**，`row ∈ [0, H]`、`col ∈ [0, W]`，不是像素中心。
+/// 由此环围出的多边形恰好等于成员像素的并集，故
+///
+///     有向面积（像素单位） == 成员像素个数
+///
+/// 是**恒等式**而非近似。这一条是本文件最核心的判据：它把「几何与 area_m2
+/// 一致」从声明变成可判定的性质。旧实现取像素中心，外环是内接多边形，几何
+/// 面积恒小于像素个数（实测偏差 −2.93 % 至 −31.4 %）。
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <set>
 #include <utility>
 #include <vector>
@@ -53,48 +66,66 @@ std::set<Index> as_index_set(const std::vector<Coord>& pixels) {
     return result;
 }
 
-/// 独立计算轮廓像素：4 邻域中存在非成员邻居的成员像素。
+/// 闭合折线有向面积的两倍（鞋带公式），测试侧独立实现。
 ///
-/// 采用 4 邻域而非 8 邻域：区域本身按 4 邻域连通，故「内部像素」应由 4 个
-/// 边邻居判定。十字形的中心像素在 8 邻域下会被误判为轮廓像素（它的四个对角
-/// 位置恰好是背景），但外轮廓并不穿过它。
-std::set<Index> boundary_pixels_of(const std::vector<Coord>& pixels) {
-    const std::set<Index> members = as_index_set(pixels);
-    std::set<Index> boundary;
-    constexpr int kDr[4] = {-1, 1, 0, 0};
-    constexpr int kDc[4] = {0, 0, -1, 1};
-
-    for (const auto& p : pixels) {
-        for (int k = 0; k < 4; ++k) {
-            if (members.count(Index{p.row + kDr[k], p.col + kDc[k]}) == 0) {
-                boundary.insert(Index{p.row, p.col});
-                break;
-            }
-        }
+/// 与引擎各自的实现互不引用，故「面积 == 像素数」这一判据不构成自证。
+long long area_twice(const std::vector<Coord>& ring) {
+    long long sum = 0;
+    const std::size_t count = ring.size();
+    for (std::size_t i = 0; i < count; ++i) {
+        const Coord& a = ring[i];
+        const Coord& b = ring[(i + 1) % count];
+        sum += (static_cast<long long>(a.col) * b.row) - (static_cast<long long>(b.col) * a.row);
     }
-    return boundary;
+    return sum;
 }
 
-bool is_8_adjacent(const Coord& a, const Coord& b) {
-    const int dr = a.row - b.row;
-    const int dc = a.col - b.col;
-    return dr >= -1 && dr <= 1 && dc >= -1 && dc <= 1 && !(dr == 0 && dc == 0);
-}
-
-/// 环的公共约定：首尾不重复、相邻顶点 8 邻接、且末点与首点也邻接（闭合）。
-void check_ring_shape(const std::vector<Coord>& ring, const std::set<Index>& members) {
+/// 环的公共约定。
+///
+/// * 顶点是角点格点，落在 `[0, max_row] × [0, max_col]` 内；
+/// * 首尾不重复，相邻顶点由水平或竖直的直线段相连（段长可为多像素）；
+/// * 环上不留共线的冗余顶点 —— 相邻两段方向必须不同；
+/// * 有向面积符号按外环/洞环区分，绝对值等于像素数的两倍。
+///
+/// @param pixel_count 该环所属区域（外环）或所围空洞（洞环）的像素个数
+/// @param outer 外环为 true（有向面积为正），洞环为 false
+void check_ring_shape(const std::vector<Coord>& ring, int pixel_count, bool outer, int max_row,
+                      int max_col) {
+    INFO("环顶点数 = " << ring.size());
     REQUIRE(ring.size() >= 3);
 
     for (const auto& p : ring) {
-        CHECK(members.count(Index{p.row, p.col}) == 1);
+        CHECK(p.row >= 0);
+        CHECK(p.row <= max_row);
+        CHECK(p.col >= 0);
+        CHECK(p.col <= max_col);
     }
-    for (std::size_t i = 1; i < ring.size(); ++i) {
-        CHECK(ring[i - 1] != ring[i]);
-        CHECK(is_8_adjacent(ring[i - 1], ring[i]));
+
+    const std::size_t count = ring.size();
+    for (std::size_t i = 0; i < count; ++i) {
+        const Coord& previous = ring[(i + count - 1) % count];
+        const Coord& current = ring[i];
+        const Coord& next = ring[(i + 1) % count];
+
+        CHECK(current != next);
+        // 轴对齐：水平段行相同，竖直段列相同，二者必居其一。
+        const bool horizontal = current.row == next.row;
+        const bool vertical = current.col == next.col;
+        CHECK(horizontal != vertical);
+
+        // 共线合并的判据：转入方向与转出方向不得相同。
+        const int in_row = current.row - previous.row;
+        const int in_col = current.col - previous.col;
+        const int out_row = next.row - current.row;
+        const int out_col = next.col - current.col;
+        CHECK_FALSE((in_row == out_row && in_col == out_col));
     }
-    // 闭合：末点与首点必须 8 邻接。追踪若在中途断掉，这条断言会失败。
-    CHECK(ring.back() != ring.front());
-    CHECK(is_8_adjacent(ring.back(), ring.front()));
+
+    const long long twice = area_twice(ring);
+    CHECK(twice != 0);
+    CHECK((twice > 0) == outer);
+    // 几何面积（像素单位）精确等于像素个数 —— Phase 2.1 的核心恒等式。
+    CHECK(std::abs(twice) == 2LL * pixel_count);
 }
 
 }  // namespace
@@ -106,13 +137,11 @@ TEST_CASE("实心方块：一条闭合外环，无洞", "[contour]") {
     REQUIRE_FALSE(boundary.outline.empty());
     CHECK(boundary.holes.empty());
 
-    const std::set<Index> members = as_index_set(pixels);
-    check_ring_shape(boundary.outline, members);
+    // 3x3 方块（行 1..3、列 1..3）的边界即格点矩形 (1,1)-(1,4)-(4,4)-(4,1)。
+    check_ring_shape(boundary.outline, 9, true, 4, 4);
 
-    // 方格中心的 8 个邻居全为成员，中心不是边界像素；其余 8 个都是。
-    const std::set<Index> traced = as_index_set(boundary.outline);
-    CHECK(traced == boundary_pixels_of(pixels));
-    CHECK(traced.size() == 8);
+    const std::set<Index> expected = {Index{1, 1}, Index{1, 4}, Index{4, 4}, Index{4, 1}};
+    CHECK(as_index_set(boundary.outline) == expected);
 }
 
 TEST_CASE("十字形：凹角众多，仍只出一条闭合外环", "[contour]") {
@@ -123,15 +152,15 @@ TEST_CASE("十字形：凹角众多，仍只出一条闭合外环", "[contour]")
     INFO("洞数 = " << boundary.holes.size());
     CHECK(boundary.holes.empty());
 
-    const std::set<Index> members = as_index_set(pixels);
-    check_ring_shape(boundary.outline, members);
+    // 一像素宽的臂使外环在格点层面成为 12 顶点的正交多边形；面积仍恰为 9。
+    check_ring_shape(boundary.outline, 9, true, 5, 5);
+    CHECK(boundary.outline.size() == 12);
 
-    // 一像素宽的臂使 9 个像素中有 8 个是轮廓像素 —— 十字中心的四个边邻居都在
-    // 区域内，属内部像素。外环须覆盖轮廓像素的全集；覆盖不全即说明轮廓被劈成
-    // 了多段。
-    const std::set<Index> traced = as_index_set(boundary.outline);
-    CHECK(traced == boundary_pixels_of(pixels));
-    CHECK(traced.size() == 8);
+    const std::set<Index> expected = {
+        Index{0, 2}, Index{0, 3}, Index{2, 3}, Index{2, 5}, Index{3, 5}, Index{3, 3},
+        Index{5, 3}, Index{5, 2}, Index{3, 2}, Index{3, 0}, Index{2, 0}, Index{2, 2},
+    };
+    CHECK(as_index_set(boundary.outline) == expected);
 }
 
 TEST_CASE("带洞方块：外环一条、洞环一条", "[contour]") {
@@ -147,22 +176,22 @@ TEST_CASE("带洞方块：外环一条、洞环一条", "[contour]") {
     const spatial::Boundary boundary = spatial::extract_boundary(kept);
     REQUIRE_FALSE(boundary.outline.empty());
 
-    const std::set<Index> members = as_index_set(kept);
-    check_ring_shape(boundary.outline, members);
+    // 外环围住整个 5x5，有向面积 == 2 * 25。
+    check_ring_shape(boundary.outline, 25, true, 5, 5);
+    CHECK(as_index_set(boundary.outline) ==
+          std::set<Index>{Index{0, 0}, Index{0, 5}, Index{5, 5}, Index{5, 0}});
 
     REQUIRE(boundary.holes.size() == 1);
     const auto& hole = boundary.holes.front();
-    check_ring_shape(hole, members);
 
-    // 内环即被挖空中心的 4 邻域像素 —— 也就是区域的内边界。若改取洞自身的
-    // 背景像素，这种一个像素的洞凑不出环，只能被丢弃。
-    const std::set<Index> expected_hole = {
-        Index{1, 2},
-        Index{2, 1},
-        Index{2, 3},
-        Index{3, 2},
-    };
-    CHECK(as_index_set(hole) == expected_hole);
+    // 洞环是围绕 (2, 2) 的那个格点方形，方向与外环相反，有向面积 == −2 * 1。
+    // 它由边图分解直接得到，不需要对背景做洪泛搜索；一像素的洞同样是合法内环。
+    check_ring_shape(hole, 1, false, 5, 5);
+    CHECK(as_index_set(hole) ==
+          std::set<Index>{Index{2, 2}, Index{2, 3}, Index{3, 3}, Index{3, 2}});
+
+    // 净面积（外环 + 洞环）== 2 * 实际像素数，即 5x5 减去被挖的 1 个。
+    CHECK(area_twice(boundary.outline) + area_twice(hole) == 2LL * 24);
 }
 
 TEST_CASE("成员不足 3 个像素：返回空 Boundary（D-7）", "[contour]") {
@@ -179,12 +208,18 @@ TEST_CASE("成员不足 3 个像素：返回空 Boundary（D-7）", "[contour]")
     CHECK(none.holes.empty());
 }
 
-TEST_CASE("共线三点不产出环（退化几何）", "[contour]") {
-    // 追踪本身会走通这条线，但结果不足以构成多边形；此处只固定住「不抛异常、
-    // 且更上层会据有向面积过滤」这一约定。
+TEST_CASE("三点共线的成员：沿像素边界追踪仍产出合法矩形", "[contour]") {
+    // Phase 2 的实现在像素中心取样，共线像素连成的环有向面积为 0，被判为退化。
+    // 改在像素边界取样后，一行三像素围出的是 1 像素高的矩形，面积恰为 3 ——
+    // 它不是退化几何，不应被剔除。
     const std::vector<Coord> line = {Coord{5, 5}, Coord{5, 6}, Coord{5, 7}};
     const spatial::Boundary boundary = spatial::extract_boundary(line);
+
+    REQUIRE_FALSE(boundary.outline.empty());
     CHECK(boundary.holes.empty());
+    check_ring_shape(boundary.outline, 3, true, 6, 8);
+    CHECK(as_index_set(boundary.outline) ==
+          std::set<Index>{Index{5, 5}, Index{5, 8}, Index{6, 8}, Index{6, 5}});
 }
 
 TEST_CASE("追踪结果与输入像素的书写顺序无关", "[contour]") {

@@ -30,6 +30,17 @@ std::vector<Coord> make_octagon() {
     };
 }
 
+/// 正交阶梯环：相邻边方向两两不同，模拟 crack following 的输出形状。
+///
+/// 这类环是「容差 0 必须短路」的动机所在：它的角点全是直角，用浮点垂直距离
+/// 判定「是否落在弦上」时，角点完全可能被判为距离 0 而被删掉，几何随之改变。
+std::vector<Coord> make_stairs() {
+    return {
+        Coord{0, 0}, Coord{0, 3}, Coord{1, 3}, Coord{1, 1},
+        Coord{2, 1}, Coord{2, 4}, Coord{3, 4}, Coord{3, 0},
+    };
+}
+
 std::vector<Coord> rotate_ring(const std::vector<Coord>& ring, std::size_t offset) {
     std::vector<Coord> result;
     result.reserve(ring.size());
@@ -101,6 +112,20 @@ TEST_CASE("输入少于 4 点时原样返回", "[simplify]") {
 
     const std::vector<Coord> two = {Coord{0, 0}, Coord{0, 3}};
     CHECK(spatial::simplify_boundary(two, 2.0) == two);
+}
+
+TEST_CASE("容差非正时不简化：顶点原样保留", "[simplify]") {
+    const auto ring = make_stairs();
+    REQUIRE(ring.size() == 8);
+
+    for (const double tolerance : {0.0, -0.5, -1.0}) {
+        INFO("容差 = " << tolerance);
+        CHECK(spatial::simplify_boundary(ring, tolerance) == ring);
+    }
+
+    // 对照：正容差才真的简化。容差 0 的语义价值不在「删得少」，而在
+    // 「几何面积精确守恒」—— 由短路保证，而非由浮点比较的巧合保证。
+    CHECK(spatial::simplify_boundary(ring, 1.0).size() < ring.size());
 }
 
 TEST_CASE("简化结果只取输入顶点且保持循环顺序", "[simplify]") {

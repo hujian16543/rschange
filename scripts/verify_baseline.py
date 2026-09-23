@@ -26,7 +26,7 @@
 | 夹具                       | 覆盖判据                                                     |
 |----------------------------|--------------------------------------------------------------|
 | `change_mask.{raw,json}`   | §7.1 不变量、§7.2 缺陷基线、§7.3 语义断言（单连通域）        |
-| `multi_region_mask.{raw,json}` | §7.3 的 label 分配顺序、多区域「一个 Region 一个 Feature」、退化轮廓剔除、洞环合法性 |
+| `multi_region_mask.{raw,json}` | §7.3 的 label 分配顺序、多区域「一个 Region 一个 Feature」、几何面积一致性、洞环合法性 |
 
 `multi_region_mask` 的期望值由几何定义直接写出（`scripts/make_multi_region_fixture.py`），
 连通域个数与首次出现顺序另由 scipy 独立计算，构成「几何定义 ↔ scipy ↔ 引擎」三方对照。
@@ -139,6 +139,12 @@ PIXEL_AREA_M2: Final = 100.0  # |10 * -10|
 EXPECTED_TRUE_AREA: Final = 720900.0
 RATE_TOL: Final = 1e-6
 AREA_TOL: Final = 1e-6
+# 几何面积（shapely 由经纬度坐标算出）与上报面积的相对偏差上限，百分比为单位。
+#
+# 顶点取像素角点，故两者应恒等，残余偏差只来自浮点表示：坐标量级为
+# 5e5 × 4e6，双精度乘积的绝对误差约 1e-4 m²。取 1e-6 % 已远超该量级，
+# 同时远小于旧基准的偏差（>= 2.93 %），故判据仍能捕捉几何基准回退。
+GEOMETRY_TOL_PERCENT: Final = 1e-6
 # §7.2 现状值（旧引擎的实际输出，均为缺陷产物）
 LEGACY_FEATURE_COUNT: Final = 2
 LEGACY_AREA_SUM: Final = 1441800.0
@@ -360,7 +366,7 @@ def main() -> int:
 
     # ================================================= 多区域夹具（§7.3 判据）
     # 单连通域夹具覆盖不到两类语义：label 分配顺序（D-6）、多区域时的
-    # 「一个 Region 一个 Feature」与退化区域剔除（D-7）。故另取一份几何完全
+    # 「一个 Region 一个 Feature」与几何面积一致性。故另取一份几何完全
     # 人工指定的夹具，其期望值写在同名 JSON 里，来自几何定义本身。
     multi_raw_path = fixtures / "multi_region_mask.raw"
     multi_meta_path = fixtures / "multi_region_mask.json"
@@ -420,11 +426,14 @@ def main() -> int:
     add(
         Check(
             "7.3",
-            "多区域 label 序列（退化项剔除后）",
+            "多区域 label 序列（与几何定义一致）",
             fmt(kept_labels),
             fmt(engine_labels),
             engine_labels == kept_labels,
-            note=f"连通域 {multi_components} 个，其中 {len(dropped_counts)} 个退化轮廓不产出 Feature",
+            note=(
+                f"连通域 {multi_components} 个，退化项 {len(dropped_counts)} 个"
+                "（Phase 2.1 起一像素宽结构也是合法矩形，故无退化项）"
+            ),
         )
     )
     add(
@@ -490,9 +499,28 @@ def main() -> int:
             note=(
                 f"洞环合计 {hole_total} 个；几何面积合计 {fmt(geometry_area, 1)} m²，"
                 f"上报面积合计 {fmt(reported_area, 1)} m²，偏差 {deviation:.2f}%"
-                "（已声明约定：环取像素中心，故几何面积为内接多边形）"
+                "（顶点取像素角点，故几何面积应等于 area_m2）"
                 + ("；" + "；".join(violations[:3]) if violations else "")
             ),
+        )
+    )
+
+    # ---------------------------------------------- 几何面积与上报面积一致
+    #
+    # Phase 2 的实现在像素中心取样，外环是内接多边形，几何面积恒**小于**
+    # 上报的 area_m2 —— 偏差随区域变小而放大（实测基线 −2.93 %、多区域
+    # −17.63 %、最小区域 −31.4 %）。Phase 2.1 改在像素边界取样后两者恒等。
+    #
+    # 本判据把「几何与 area_m2 一致」从文档声明变成可判定的性质：偏差一旦
+    # 显著偏离 0（尤其回到负值），即说明追踪基准回退到像素中心。
+    add(
+        Check(
+            "7.3",
+            "几何面积 == 上报面积（像素角点基准）",
+            f"偏差 0.00%（{fmt(reported_area, 1)} m²）",
+            f"偏差 {deviation:.2f}%（{fmt(geometry_area, 1)} m²）",
+            abs(deviation) <= GEOMETRY_TOL_PERCENT,
+            note="几何面积由 shapely 独立算出，不依赖被测代码；差值为浮点表示级",
         )
     )
 

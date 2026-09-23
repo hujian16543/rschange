@@ -35,9 +35,17 @@ SPATIAL_API double point_line_distance(const PixelCoord& p, const PixelCoord& a,
 /// 由此结果只取决于环的几何形状，与起始像素无关。三个锚点必然保留，故结果
 /// 恒不少于 3 点，且容差增大时顶点数单调不增。
 ///
+/// 容差为零
+/// --------
+/// `tolerance <= 0` 时**不简化**，原样返回。Douglas-Peucker 在容差 0 下本应
+/// 只删除与弦严格共线的顶点，但顶点落在弦上的判定是浮点距离比较，直角阶梯的
+/// 角点完全可能被判为距离 0 而被删除——那会改变几何面积。既然「容差 0」的
+/// 语义价值在于**面积精确守恒**（几何面积 == 像素个数 × 单像元面积），此处
+/// 直接短路，让该性质由构造保证而非由浮点巧合保证。
+///
 /// @param ring 闭合环，首尾不重复
-/// @param tolerance 容差（像素）。建议取 1.0–2.0
-/// @return 简化后的环，顶点保持输入顺序，不少于 3 点；输入少于 4 点时原样返回
+/// @param tolerance 容差（像素）。0 表示不简化；正容差建议取 1.0–2.0，越大顶点越少
+/// @return 简化后的环，顶点保持输入顺序，不少于 3 点；输入少于 4 点或容差非正时原样返回
 SPATIAL_API std::vector<PixelCoord> simplify_boundary(const std::vector<PixelCoord>& ring,
                                                       double tolerance);
 

@@ -6,9 +6,12 @@
 /// 1. **label 分配顺序（D-6）。** 旧实现用 `std::unordered_map` 分组，迭代序
 ///    未定义，同一输入在不同标准库实现下会得到不同的 label 顺序。判据是
 ///    「区域按 raster-scan 首次出现位置排序」——它是几何性质，与容器无关。
-/// 2. **退化轮廓剔除（D-7）。** 一像素宽的细条按像素中心连成的环全部共线、
-///    有向面积为 0，必须被 `regions_to_geojson` 跳过。
-/// 3. **洞环。** 带洞区域须产出「一个 Feature + 首环为外环、其余为内环」，
+/// 2. **一像素宽结构不再是退化几何。** 顶点取像素角点后，`line_e` 这条 1 像素
+///    宽的竖条围出的是合法的 1x5 矩形，面积 500 m²，必须产出 Feature。Phase 2
+///    取像素中心时它的环全部共线、有向面积为 0，被当作 D-7 退化轮廓跳过。
+/// 3. **几何面积与像素数一致。** 每个 Feature 的几何面积（外环减内环）精确等于
+///    其 `pixel_count` 乘单像元面积。这是 Phase 2.1 几何基准的直接判据。
+/// 4. **洞环。** 带洞区域须产出「一个 Feature + 首环为外环、其余为内环」，
 ///    而不是把洞单独算成一个 Feature。
 ///
 /// 期望值全部取自 `multi_region_mask.json`，该文件由
@@ -19,6 +22,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -83,6 +87,36 @@ spatial::Boundary boundary_of_label(const std::vector<spatial::Region>& regions,
     return {};
 }
 
+/// 一条 GeoJSON 环的几何面积（鞋带公式，顶点为 [lon, lat]）；测试侧独立实现。
+double ring_area(const Json& ring) {
+    double sum = 0.0;
+    const std::size_t count = ring.size();
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x0 = ring.at(i).at(0).get<double>();
+        const double y0 = ring.at(i).at(1).get<double>();
+        const double x1 = ring.at((i + 1) % count).at(0).get<double>();
+        const double y1 = ring.at((i + 1) % count).at(1).get<double>();
+        sum += (x0 * y1) - (x1 * y0);
+    }
+    return std::abs(sum) / 2.0;
+}
+
+/// Feature 的净几何面积：外环面积减去洞环面积。
+double feature_area(const Json& feature) {
+    const auto& rings = feature.at("geometry").at("coordinates");
+    double total = ring_area(rings.at(0));
+    for (std::size_t i = 1; i < rings.size(); ++i) {
+        total -= ring_area(rings.at(i));
+    }
+    return total;
+}
+
+/// 几何面积与期望值是否一致。见 test_geojson.cpp 中同名函数的说明：经纬度
+/// 坐标量级为 5e5 × 4e6，双精度乘积的绝对误差约 1e-4 m²，故不能用严格相等。
+bool area_equals(double actual, double expected) {
+    return std::abs(actual - expected) <= (1e-6 * expected) + 1e-2;
+}
+
 }  // namespace
 
 TEST_CASE("多区域夹具：每个区域按 raster-scan 首次出现位置编号", "[multi_region]") {
@@ -134,7 +168,7 @@ TEST_CASE("多区域夹具：每个区域按 raster-scan 首次出现位置编�
     CHECK(regions[2].pixels.front().col < regions[3].pixels.front().col);
 }
 
-TEST_CASE("多区域夹具：一个 Region 一个 Feature，退化轮廓被剔除", "[multi_region]") {
+TEST_CASE("多区域夹具：一个 Region 一个 Feature，几何面积与像素数一致", "[multi_region]") {
     const MultiRegion f = load_multi_region();
     const auto regions = spatial::extract_regions(f.mask.data(), f.width, f.height, f.geo);
 
@@ -144,48 +178,38 @@ TEST_CASE("多区域夹具：一个 Region 一个 Feature，退化轮廓被剔�
     const Json& meta_regions = f.meta.at("regions");
     std::vector<int> kept_labels;
     std::vector<int> kept_counts;
-    std::vector<int> dropped_counts;
     for (const auto& expected : meta_regions) {
-        if (expected.at("expected_feature").get<bool>()) {
-            kept_labels.push_back(expected.at("label").get<int>());
-            kept_counts.push_back(expected.at("pixel_count").get<int>());
-        } else {
-            dropped_counts.push_back(expected.at("pixel_count").get<int>());
-        }
+        REQUIRE(expected.at("expected_feature").get<bool>());
+        kept_labels.push_back(expected.at("label").get<int>());
+        kept_counts.push_back(expected.at("pixel_count").get<int>());
     }
 
+    // 顶点取像素角点后本夹具没有退化项，故 Feature 数等于连通域数。
+    REQUIRE(features.size() == regions.size());
     REQUIRE(features.size() == f.meta.at("expected_feature_count").get<std::size_t>());
-    CHECK(features.size() == regions.size() - dropped_counts.size());
+    CHECK(f.meta.at("degenerate_components").get<int>() == 0);
 
+    const double pixel_area = f.meta.at("pixel_area_m2").get<double>();
     for (std::size_t index = 0; index < features.size(); ++index) {
         CHECK(features.at(index).at("properties").at("label").get<int>() == kept_labels[index]);
         CHECK(features.at(index).at("properties").at("pixel_count").get<int>() ==
               kept_counts[index]);
+
+        // 几何面积 == 像素数 × 单像元面积。旧基准（像素中心）下本夹具的几何
+        // 面积合计比上报值小 17.63 %；`line_e` 更是被整条剔除。
+        CHECK(area_equals(feature_area(features.at(index)), kept_counts[index] * pixel_area));
     }
 
-    // 退化区域的像素数不得出现在任何 Feature 的属性里。
-    for (const auto& feature : features) {
-        const int count = feature.at("properties").at("pixel_count").get<int>();
-        CHECK(std::find(dropped_counts.begin(), dropped_counts.end(), count) == dropped_counts.end());
-    }
-
-    // 直接钉住退化几何本身：细条的轮廓顶点全部共线，有向面积为 0。
-    const Json& degenerate = *std::find_if(
-        meta_regions.begin(), meta_regions.end(),
-        [](const Json& item) { return !item.at("expected_feature").get<bool>(); });
-    const int degenerate_label = degenerate.at("label").get<int>();
-    const spatial::Boundary boundary = boundary_of_label(regions, degenerate_label);
-    REQUIRE(boundary.outline.size() >= 3);
-    CHECK(boundary.outline.front() != boundary.outline.back());
-    CHECK(boundary.holes.empty());
-
-    for (const auto& region : regions) {
-        if (region.label != degenerate_label) {
+    // 一像素宽结构的轮廓是 4 顶点的矩形，不再是共线退化几何。
+    for (const auto& expected : meta_regions) {
+        if (expected.at("name").get<std::string>() != "line_e") {
             continue;
         }
-        const std::vector<spatial::Region> alone{region};
-        const Json only = Json::parse(spatial::regions_to_geojson(alone, f.geo));
-        CHECK(only.at("features").empty());
+        const spatial::Boundary boundary =
+            boundary_of_label(regions, expected.at("label").get<int>());
+        REQUIRE(boundary.outline.size() == 4);
+        CHECK(boundary.outline.front() != boundary.outline.back());
+        CHECK(boundary.holes.empty());
     }
 }
 
@@ -248,12 +272,17 @@ TEST_CASE("多区域夹具：非方形影像的行列不得互换", "[multi_regi
         }
     }
 
-    // 四个极值分别来自：最左列 6（blob_a）、最右列 118（blob_c）、
-    // 最上行 4（blob_a）、最下行 53（ring_d）。
-    CHECK(min_lon == 500000.0 + 6.0 * 10.0);    // blob_a 最左列 6
-    CHECK(max_lon == 500000.0 + 118.0 * 10.0);  // blob_c 最右列 118
-    CHECK(max_lat == 4000000.0 - 4.0 * 10.0);   // blob_a 最上行 4
-    CHECK(min_lat == 4000000.0 - 53.0 * 10.0);  // ring_d 最下行 53
+    // 顶点取像素角点，故极值格点比像素下标各多一行一列。四个极值分别来自：
+    // 最左格点列 6（blob_a 的列 6..15）、最右格点列 119（blob_c 的列 96..118）、
+    // 最上格点行 4（blob_a 的行 4..13）、最下格点行 61（line_e 的行 56..60）。
+    //
+    // `line_e` 在 Phase 2 被当作退化轮廓整条剔除，故当时的最下行来自 ring_d
+    // （行 53）；新基准下它参与输出，极值也随之改变 —— 这几条断言因此同时
+    // 钉住了「几何基准」与「行列不互换」两件事。
+    CHECK(min_lon == 500000.0 + 6.0 * 10.0);    // blob_a 最左格点列 6
+    CHECK(max_lon == 500000.0 + 119.0 * 10.0);  // blob_c 最右格点列 119
+    CHECK(max_lat == 4000000.0 - 4.0 * 10.0);   // blob_a 最上格点行 4
+    CHECK(min_lat == 4000000.0 - 61.0 * 10.0);  // line_e 最下格点行 61
 
     for (const auto& feature : collection.at("features")) {
         for (const auto& ring : feature.at("geometry").at("coordinates")) {
