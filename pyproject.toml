@@ -100,6 +100,22 @@ files = ["backend/src"]
 show_error_codes = true
 warn_unused_ignores = true
 
+# 测试模块放宽「函数签名必须完整标注」一条，**只此一条**。
+#
+# 理由：测试的签名不承担对外契约，用例的价值在断言；为每个夹具参数补标注只增加
+# 噪声，不产生可发现的缺陷。而用例函数体仍受 `check_untyped_defs`（strict 的组成
+# 部分，未被此处覆盖）检查，故真实类型错误照样浮出——T3.6 期间 mypy 正是靠
+# `disallow_any_generics` 与 `arg-type` 抓出测试自身两处 `NDArray` 缺参数、两处
+# 夹具返回值缺 tuple 参数、以及 `Settings(**原始 dict)` 的类型不兼容。
+#
+# 禁止把本覆盖扩大为 `ignore_errors` 或对 `backend/src/rschange/**` 生效：那会让
+# G3.2（ruff + mypy 零错误）退化为「对产品代码零错误」，而测试恰恰是产品代码的
+# 主要调用方，其类型错误最有诊断价值。
+[[tool.mypy.overrides]]
+module = ["rschange.tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
 # ------------------------------------------------------------
 # pytest
 # ------------------------------------------------------------
