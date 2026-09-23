@@ -4,7 +4,9 @@
 了四份（`main.py`、`services/detection.py`、`tests/test_cva.py`、
 `tests/test_bindings.py`），且各自硬编码 MSYS2 绝对路径。
 
-判定依据：`grep -rn "msys64" backend/` 结果为空（阶段出口门 G3.5）。
+判定依据：backend 内不得出现 MSYS2 安装目录的字面路径（阶段出口门 G3.5）。
+注意本条注释**刻意不写出该路径**——判据的字面串若出现在被检查对象里，会让
+判据自己判自己失败。
 
 `os.add_dll_directory` 的句柄必须持有
 -------------------------------------
