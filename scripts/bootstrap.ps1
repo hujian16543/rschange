@@ -173,18 +173,44 @@ if (Test-Path $LocalToml) {
     Write-Ok "已从 local.example.toml 生成 config/local.toml（该文件已被 git 忽略）"
 }
 
+# 模板里的键全部处于注释状态，engine.runtime_dll_dir 因而为空。Windows 上该项
+# 是必填的：_spatial 依赖 libgdal-*.dll 与 libstdc++-6.dll，PE 加载器不会去
+# MSYS2 的 bin 目录里找。本脚本**不推测**该路径——MSYS2 安装位置因人而异，
+# 猜错产生的报错（「找不到指定模块」）会把人引到错误方向。此处只登记待办。
+$localTomlText = (Get-Content $LocalToml -Raw) -replace "`r`n", "`n"
+$dllDirMatch = [regex]::Match($localTomlText, '(?m)^\s*runtime_dll_dir\s*=\s*"([^"]*)"\s*$')
+$dllDir = ""
+if ($dllDirMatch.Success) { $dllDir = $dllDirMatch.Groups[1].Value.Trim() }
+
+if (-not $dllDir) {
+    if ($env:OS -eq "Windows_NT") {
+        Write-Host ""
+        Write-Host "      待办  config/local.toml 的 engine.runtime_dll_dir 尚未填写" -ForegroundColor Yellow
+        Write-Host "            Windows 必填，留空则 import _spatial 报「找不到指定模块」。" -ForegroundColor Yellow
+        Write-Host "            路径由本机 MSYS2 安装位置决定，本脚本不作推测。示例：" -ForegroundColor Yellow
+        Write-Host '              runtime_dll_dir = "C:/Users/<用户名>/DevCode/msys64/mingw64/bin"' -ForegroundColor DarkGray
+    } else {
+        Write-Host ""
+        Write-Host "      提示  engine.runtime_dll_dir 为空；Linux / macOS 留空即正确。" -ForegroundColor DarkGray
+    }
+}
+
 # ------------------------------------------------------------------
 Write-Step 7 "下一步"
 # ------------------------------------------------------------------
 Write-Host ""
 Write-Host "  环境就绪。后续命令一律走 uv，不激活 venv 也能执行：" -ForegroundColor White
-Write-Host "    uv run python scripts/verify_baseline.py --phase 1    # 基线锚点校验" -ForegroundColor DarkGray
+Write-Host "    uv run python scripts/verify_baseline.py --phase 2   # 基线锚点校验" -ForegroundColor DarkGray
+Write-Host "    uv run python scripts/verify_config.py               # 配置一致性校验" -ForegroundColor DarkGray
 Write-Host "    uv run pytest                                        # 单元与集成测试" -ForegroundColor DarkGray
-Write-Host "    uv run ruff check backend/                           # 静态检查" -ForegroundColor DarkGray
+Write-Host "    uv run ruff check backend/ scripts/                  # 静态检查" -ForegroundColor DarkGray
+Write-Host "    uv run ruff format --check backend/ scripts/         # 格式检查" -ForegroundColor DarkGray
 Write-Host "    uv run mypy                                          # 类型检查" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  编译 C++ 引擎（Phase 2 起）：" -ForegroundColor White
-Write-Host "    powershell -ExecutionPolicy Bypass -File scripts/build-engine.ps1" -ForegroundColor DarkGray
+Write-Host "  编译 C++ 引擎（Phase 2 起，无 build-engine.ps1，直接用预设）：" -ForegroundColor White
+Write-Host "    Push-Location engine; cmake --preset local-win; Pop-Location    # 配置" -ForegroundColor DarkGray
+Write-Host "    cmake --build engine/build/dev-win                             # 构建" -ForegroundColor DarkGray
+Write-Host "    ctest --test-dir engine/build/dev-win --output-on-failure      # 38 项单测" -ForegroundColor DarkGray
 Write-Host ""
 
 exit 0

@@ -12,15 +12,15 @@
     -10.0
   ],
   "pixel_area_m2": 100.0,
-  "simplify_tolerance": 2.0,
+  "simplify_tolerance": 0.0,
   "changed_pixels": 663,
   "components": 6,
-  "degenerate_components": 1,
-  "expected_feature_count": 5,
-  "expected_pixels_in_features": 658,
-  "expected_area_m2": 65800.0,
+  "degenerate_components": 0,
+  "expected_feature_count": 6,
+  "expected_pixels_in_features": 663,
+  "expected_area_m2": 66300.0,
   "expected_holes_total": 1,
-  "note": "label 顺序必须等于各区域首次出现位置 (first_row, first_col) 的字典序。blob_f 与 blob_c 首次出现同行，故顺序由列号决定：blob_f 在前。line_e 为退化轮廓，必须被剔除，因此 Feature 数为 5 而连通域数为 6。",
+  "note": "label 顺序必须等于各区域首次出现位置 (first_row, first_col) 的字典序。blob_f 与 blob_c 首次出现同行，故顺序由列号决定：blob_f 在前。Phase 2.1 起顶点取像素角点，line_e 这条 1 像素宽竖条是合法的 1x5 矩形，不作退化剔除：Feature 数 == 连通域数 == 6。",
   "regions": [
     {
       "label": 1,
@@ -80,13 +80,13 @@
     {
       "label": 6,
       "name": "line_e",
-      "kind": "degenerate_line",
+      "kind": "narrow_line",
       "first_row": 56,
       "first_col": 100,
       "first_index": 6820,
       "pixel_count": 5,
       "holes": 0,
-      "expected_feature": false
+      "expected_feature": true
     }
   ]
 }

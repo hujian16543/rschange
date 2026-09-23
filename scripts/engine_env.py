@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import tomllib
@@ -57,10 +58,9 @@ def load_config() -> dict[str, Any]:
         if lowered in ("true", "false"):
             value = lowered == "true"
         else:
-            try:
+            # 非布尔时尝试按整数解析；解析失败即保持字符串。
+            with contextlib.suppress(ValueError):
                 value = int(raw)
-            except ValueError:
-                pass
         config.setdefault(section, {})[key] = value
 
     return config

@@ -41,11 +41,6 @@ struct RasterData {
 /// 遍历并注册全部驱动，属缺陷 D-4。
 SPATIAL_API void ensure_gdal_initialized();
 
-/// 仅供测试：返回 `GDALAllRegister()` 的实际执行次数。
-///
-/// 用于对 D-4 的一次性化写出可断言的判据——计时对比无法稳定成测。
-SPATIAL_API int gdal_registration_count() noexcept;
-
 /// 读取 GeoTIFF 的全部波段。
 ///
 /// @throws std::runtime_error 打开失败、波段类型不符或 `RasterIO` 出错。

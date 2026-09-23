@@ -27,8 +27,9 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
@@ -49,8 +50,12 @@ def expect_reject(tag: str, call: Callable[[], Any], expected_type: type[BaseExc
         call()
     except expected_type as exc:
         check(True, f"{tag} 被拒绝", f"{type(exc).__name__}")
-    except Exception as exc:  # noqa: BLE001
-        check(False, f"{tag} 被拒绝", f"异常类型不符：{type(exc).__name__}（期望 {expected_type.__name__}）")
+    except Exception as exc:
+        check(
+            False,
+            f"{tag} 被拒绝",
+            f"异常类型不符：{type(exc).__name__}（期望 {expected_type.__name__}）",
+        )
     else:
         check(False, f"{tag} 被拒绝", "却成功了——不应静默接受")
 
@@ -58,7 +63,7 @@ def expect_reject(tag: str, call: Callable[[], Any], expected_type: type[BaseExc
 def expect_accept(tag: str, call: Callable[[], Any]) -> Any:
     try:
         result = call()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         check(False, f"{tag} 被接受", f"却抛了 {type(exc).__name__}: {exc}")
         return None
     check(True, f"{tag} 被接受")
@@ -143,17 +148,23 @@ def main() -> int:
     bad_dir.mkdir(exist_ok=True)
     expect_reject(
         "write_raster 1D 掩膜",
-        lambda: spatial.write_raster(str(bad_dir / "a.tif"), np.zeros(64, dtype=np.uint8), geo, projection),
+        lambda: spatial.write_raster(
+            str(bad_dir / "a.tif"), np.zeros(64, dtype=np.uint8), geo, projection
+        ),
         ValueError,
     )
     expect_reject(
         "write_raster 4D 掩膜",
-        lambda: spatial.write_raster(str(bad_dir / "b.tif"), np.zeros((1, 1, 8, 8), dtype=np.uint8), geo, projection),
+        lambda: spatial.write_raster(
+            str(bad_dir / "b.tif"), np.zeros((1, 1, 8, 8), dtype=np.uint8), geo, projection
+        ),
         ValueError,
     )
     expect_reject(
         "write_raster geo 只有 5 项",
-        lambda: spatial.write_raster(str(bad_dir / "c.tif"), np.zeros((8, 8), dtype=np.uint8), geo[:5], projection),
+        lambda: spatial.write_raster(
+            str(bad_dir / "c.tif"), np.zeros((8, 8), dtype=np.uint8), geo[:5], projection
+        ),
         ValueError,
     )
     expect_reject(
@@ -169,10 +180,19 @@ def main() -> int:
 
     # ------------------------------------------------------------------ 6
     print("== 6. IO 类错误必须抛 RuntimeError ==")
-    expect_reject("read_raster 不存在的文件", lambda: spatial.read_raster(str(scratch / "nope.tif")), RuntimeError)
+    expect_reject(
+        "read_raster 不存在的文件",
+        lambda: spatial.read_raster(str(scratch / "nope.tif")),
+        RuntimeError,
+    )
     expect_reject(
         "write_raster 目标目录不存在",
-        lambda: spatial.write_raster(str(scratch / "no_such_dir" / "x.tif"), np.zeros((8, 8), dtype=np.uint8), geo, projection),
+        lambda: spatial.write_raster(
+            str(scratch / "no_such_dir" / "x.tif"),
+            np.zeros((8, 8), dtype=np.uint8),
+            geo,
+            projection,
+        ),
         RuntimeError,
     )
 
@@ -186,12 +206,24 @@ def main() -> int:
     expect_accept("uint8 C 连续可写数组", lambda: spatial.mask_to_geojson(mask2d, geo))
     expect_accept(
         "uint8 C 连续只读数组（np.frombuffer）",
-        lambda: spatial.mask_to_geojson(np.frombuffer(bytes(64), dtype=np.uint8).reshape(8, 8), geo),
+        lambda: spatial.mask_to_geojson(
+            np.frombuffer(bytes(64), dtype=np.uint8).reshape(8, 8), geo
+        ),
     )
 
-    expect_reject("float32 掩膜", lambda: spatial.mask_to_geojson(np.ones((8, 8), dtype=np.float32), geo), TypeError)
-    expect_reject("int32 掩膜", lambda: spatial.mask_to_geojson(np.ones((8, 8), dtype=np.int32), geo), TypeError)
-    expect_reject("bool 掩膜", lambda: spatial.mask_to_geojson(np.ones((8, 8), dtype=bool), geo), TypeError)
+    expect_reject(
+        "float32 掩膜",
+        lambda: spatial.mask_to_geojson(np.ones((8, 8), dtype=np.float32), geo),
+        TypeError,
+    )
+    expect_reject(
+        "int32 掩膜",
+        lambda: spatial.mask_to_geojson(np.ones((8, 8), dtype=np.int32), geo),
+        TypeError,
+    )
+    expect_reject(
+        "bool 掩膜", lambda: spatial.mask_to_geojson(np.ones((8, 8), dtype=bool), geo), TypeError
+    )
     expect_reject(
         "非 C 连续掩膜（跨步切片）",
         lambda: spatial.mask_to_geojson(np.zeros((16, 16), dtype=np.uint8)[::2, ::2], geo),
@@ -204,7 +236,9 @@ def main() -> int:
     )
     expect_reject(
         "write_raster 收到 float32 掩膜",
-        lambda: spatial.write_raster(str(bad_dir / "d.tif"), np.ones((8, 8), dtype=np.float32), geo, projection),
+        lambda: spatial.write_raster(
+            str(bad_dir / "d.tif"), np.ones((8, 8), dtype=np.float32), geo, projection
+        ),
         TypeError,
     )
     # 退化 3D (1, H, W) 的波段数也是 1，若按「波段数 != 1」判定会被静默压维接受。
@@ -217,7 +251,9 @@ def main() -> int:
     # ------------------------------------------------------------------ 8
     print("== 8. read_raster 元数据 ==")
     array, width, height, bands, got_geo, got_projection = spatial.read_raster(str(before))
-    check((width, height, bands) == (256, 256, 3), "夹具尺寸 256/256/3", f"{width}/{height}/{bands}")
+    check(
+        (width, height, bands) == (256, 256, 3), "夹具尺寸 256/256/3", f"{width}/{height}/{bands}"
+    )
     check(array.shape == (3, 256, 256), "数组形状 (3,256,256)", str(array.shape))
     check(str(array.dtype) == "uint16", "dtype uint16", str(array.dtype))
     check(list(got_geo) == list(geo), "geo_transform 一致", str(list(got_geo)))
@@ -243,10 +279,7 @@ def main() -> int:
     check(abs(total - 720900.0) < 1e-6, "面积合计 720900 m²（旧实现为 1441800）", f"实得 {total}")
     check(all(f["geometry"]["type"] == "Polygon" for f in features), "几何类型均为 Polygon")
     check(
-        all(
-            set(f["properties"]) == {"label", "pixel_count", "area_m2"}
-            for f in features
-        ),
+        all(set(f["properties"]) == {"label", "pixel_count", "area_m2"} for f in features),
         "properties 字段名恰为 label / pixel_count / area_m2",
         str(sorted(features[0]["properties"])) if features else "",
     )
@@ -273,7 +306,11 @@ def main() -> int:
     xs = [point[0] for point in coords]
     ys = [point[1] for point in coords]
 
-    check(len(non_square_collection["features"]) == 1, "非方形掩膜产出 1 个 Feature", f"实得 {len(non_square_collection['features'])}")
+    check(
+        len(non_square_collection["features"]) == 1,
+        "非方形掩膜产出 1 个 Feature",
+        f"实得 {len(non_square_collection['features'])}",
+    )
     check(
         x_min <= min(xs) and max(xs) <= x_max,
         f"经度落在列范围 [{x_min:.0f}, {x_max:.0f}] 内",
