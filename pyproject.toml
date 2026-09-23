@@ -52,6 +52,17 @@ members = ["backend"]
 line-length = 100
 src = ["backend/src", "scripts"]
 
+# 排除 docs/ 的理由不是「文档不需要检查」，而是**检查对象不对**：
+# Ruff 0.16 起 `ruff format` 会一并格式化 Markdown 内的 Python 代码块，而
+# 文档里的代码块是**摘录与示例**——常为突出某个写法而刻意保留排布，不受源
+# 文件格式规范的约束。不排除时，`ruff format --check .` 会因为文档里一处
+# 注释前的空格数不同而判失败，那不是缺陷。
+#
+# 有了这条排除，「全仓库调用」（`ruff check .` / `ruff format --check .`）与
+# 「声明范围调用」（`backend/ scripts/`）结果一致，调用点不必各自记得把范围
+# 写全。范围仍以本注释上方声明的为准。
+extend-exclude = ["docs"]
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
 

@@ -96,6 +96,11 @@ std::vector<PixelCoord> simplify_boundary(const std::vector<PixelCoord>& ring, d
     if (count < 4) {
         return ring;  // 少于 4 点无法在闭合环上做有意义的简化
     }
+    if (tolerance <= 0.0) {
+        // 容差 0 的语义是「面积精确守恒」，见头文件。此处短路而非交给浮点
+        // 距离比较：顶点恰好落在弦上时距离为 0，会被判为可删，几何随之改变。
+        return ring;
+    }
 
     // 规范化起点：以 (row, col) 最小的顶点为逻辑 0 号。
     //
