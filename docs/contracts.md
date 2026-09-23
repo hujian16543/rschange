@@ -1,8 +1,8 @@
-# 引擎契约 · `_spatial` Python 扩展
+# 契约 · 引擎（_spatial）与 HTTP 接口
 
-> **冻结时点**：Phase 2 · `v0.2.0`
-> **适用对象**：backend（`rschange`）及一切通过 Python 使用空间引擎的代码。
-> **变更方式**：本文件所述条目为冻结项，变更须走 §8 的契约变更流程。
+> **冻结时点**：引擎部分自 Phase 2 · `v0.2.0`（`v0.2.1` 修订）冻结；HTTP 接口部分自 Phase 3 · `v0.3.0` 冻结。
+> **适用对象**：backend（`rschange`）全部分层代码——引擎绑定（`_spatial` 扩展）与 HTTP 接口（FastAPI 应用、路由、schema、异常处理器）。
+> **变更方式**：本文件所述条目为冻结项。引擎部分条目未被本轮改动；HTTP 部分条目变更须走 §8 的契约变更流程。
 
 ## 1. 范围与依赖方向
 
@@ -156,25 +156,160 @@ Phase 2 取**像素中心**，故外环是**内接**多边形：`n × n` 实心�
 | 契约条款 | `scripts/verify_bindings.py` | 函数齐备、写读一致、异常类型、掩膜类型与布局严格性、`properties` 字段名、非方形的坐标范围 |
 | 算法锚点 | `scripts/verify_baseline.py` | 《重构方案》§7.1 / §7.2 / §7.3，含 §5.1 的几何面积一致性 |
 | 配置一致性 | `scripts/verify_config.py` | 模板示例值 == `default.toml` == CMake 预设的 `binaryDir`；`legacy_*` 必须为空；Windows 上 `local.toml` 的 `runtime_dll_dir` 非空 |
+| HTTP 契约与分层结构 | `backend/src/rschange/tests/` 下的 pytest 套件 | `test_api.py` 管 HTTP 边界（路由、错误映射、目录穿越、CORS、体积上限）；`test_architecture.py` 管分层方向、可插拔（G3.4）与 backend 内禁止机器本地路径（G3.5）；`test_pipeline.py` 管七步编排与基线锚点 |
 
-三者刻意分档：`verify_bindings.py` 管接口契约，`verify_baseline.py` 管算法语义，`verify_config.py` 管配置与预设的一致性。把类型约束写进 §7.3 会让判定基准纠缠；配置类判据与算法无关，另立一项。
+四者刻意分档：`verify_bindings.py` 管接口契约，`verify_baseline.py` 管算法语义，`verify_config.py` 管配置与预设的一致性，三者均为仓库级脚本，不依赖 backend 装配即可运行；pytest 套件管 HTTP 契约与分层结构，依赖 FastAPI 应用与运行时上下文。把 HTTP 判据并入前三档会引入 backend 装配依赖，破坏脚本的无后端可跑性质，故另立一档。
 
 ## 8. 契约变更流程
 
-1. 在本文件记录变更点与理由，并更新 §9 变更记录。
+1. 在本文件记录变更点与理由，并更新 §10 变更记录。
 2. 同步 `engine/tests/` 中对应的 C++ 判据。
 3. 同步 `scripts/verify_bindings.py` 中对应的契约判据。
 4. 走新的阶段分支与 tag，**禁止**在既有 tag 上追加变更。
+5. HTTP 契约变更（响应字段名、错误码、状态码）须同步 `backend/src/rschange/api/schemas/` 与 `backend/src/rschange/tests/test_api.py`；若前端已消费，须同步前端类型与解析逻辑。
 
 禁止事项：
 
 * 改 `properties` 字段名而不改 backend 与前端。
 * 以「向后兼容」为名同时保留两种语义。
 * 在绑定层增删语义（如默认参数、隐式单位换算）。
+* 以「向后兼容」为名在 HTTP 响应中同时返回两种字段名（如旧字段与新字段并存）。
+* HTTP 响应字段改名而不同步 `schemas/` 与 `test_api.py`、前端消费方。
 
-## 9. 变更记录
+## 9. HTTP 接口契约
+
+本族契约覆盖 `backend/src/rschange/api/` 下的 FastAPI 应用工厂、路由、schema 与全局异常处理器。业务路由统一挂载于前缀 `API_PREFIX = "/api"` 之下（`app.py:46`）。异常响应由 `api/errors.py` 的全局处理器统一产出，路由层**不**捕获领域异常。
+
+### 9.1 端点清单
+
+| 路径 | 方法 | 用途 | 成功状态码 |
+|---|---|---|---|
+| `/api/detect` | POST | 接收两期影像，执行变化检测，返回统计量、GeoJSON 与三张预览图 URL | 200 |
+| `/api/image/{filename}` | GET | 返回 `outputs/` 或 `uploads/` 下的产物文件（预览图） | 200 |
+| `/` | GET | 服务信息（meta，非检测契约核心） | 200 |
+
+### 9.2 `POST /api/detect` 请求契约
+
+* 内容类型：`multipart/form-data`。
+* 文件字段名：必须恰好两个——`before`（前一期影像）、`after`（后一期影像）。字段名与 `routers/detection.py` 的 `detect()` 形参名一字不差。
+* 扩展名白名单：`ALLOWED_EXTENSIONS = frozenset({".tif", ".tiff", ".png"})`，即 `.tif`、`.tiff`、`.png`。后缀不在其中抛 `UnsupportedFormatError`（400）。
+* 体积上限：配置来源 `runtime.max_upload_mb`（默认 `500`）；接口以字节比较，经 `RuntimeSettings.max_upload_bytes` 计算（`max_upload_bytes = max_upload_mb × 1024 × 1024`），单文件上限即 `settings.runtime.max_upload_bytes`。
+* 超限处理：抛 `UploadTooLargeError` → HTTP 413，错误码 `upload_too_large`。
+* 是否边收边计：**是**。分块读取（块大小 `_CHUNK_BYTES = 1024 × 1024`），每写入一块即累计字节；一旦超过上限立即中断，并删除已写入的半成品文件，不把任意大小的请求体落到磁盘。
+
+### 9.3 成功响应 schema —— `DetectionResponse`
+
+逐字段（字段名与 `schemas/detection.py` 一字不差）：
+
+| 字段名 | 类型 | 含义 |
+|---|---|---|
+| `change_pixels` | `int`（`ge=0`） | 变化像元数（后处理后） |
+| `total_pixels` | `int`（`gt=0`） | 影像总像元数 |
+| `change_rate` | `float`（`ge=0, le=1`） | 变化像元占比，取值 `[0, 1]` |
+| `threshold` | `float` | 检测算法使用的判定阈值 |
+| `detector` | `str` | 实际使用的检测算法名，用于结果追溯 |
+| `pixel_area_m2` | `float`（`gt=0`） | 单像元面积（平方米） |
+| `changed_area_m2` | `float`（`ge=0`） | 真实变化面积（平方米）= `change_pixels × pixel_area_m2` |
+| `geojson` | `str \| None`（默认 `None`） | 变化区域 GeoJSON `FeatureCollection`（坐标已为 WGS84 经纬度） |
+| `image_before_url` | `str \| None` | 前一期影像预览图 URL |
+| `image_after_url` | `str \| None` | 后一期影像预览图 URL |
+| `image_diff_url` | `str \| None` | 变化叠加预览图 URL |
+| `image_corners` | `list[list[float]] \| None` | 影像四角经纬度，顺序为左上、右上、右下、左下，用于地图定位 |
+| `status` | `str`（默认 `"success"`） | 保留字段，恒为 `success` |
+
+### 9.4 错误响应 schema —— `ErrorResponse`
+
+* 形状：`{"detail": str, "code": str}`。422 情形下额外含 `"errors": list`（见 9.5）。
+* `code` 命名约束（snake_case validator 确切规则）：必须全部小写（`value == value.lower()`），且去除下划线后必须为字母数字串（`value.replace("_", "").isalnum()` 为真）。即：**禁止**大写字母、**禁止**连字符 `/` 点等非字母数字字符；下划线允许作为单词分隔。
+* 字段可空性：`detail` 与 `code` 均为必填，无默认值。`ErrorResponse` 仅为 OpenAPI 文档模型，实际错误体由 `api/errors.py` 直接产出 `JSONResponse`，不经 pydantic 校验。
+
+### 9.5 状态码映射表
+
+领域异常（逐条列出 `errors.py` 全部 12 个类，一个不漏）：
+
+| 异常类 | HTTP 状态码 | 错误码 `code` |
+|---|---|---|
+| `RsChangeError`（基类） | 500 | `internal_error` |
+| `ConfigError` | 500 | `config_error` |
+| `CrsError` | 400 | `crs_error` |
+| `EngineError`（基类） | 500 | `engine_error` |
+| `EngineLoadError` | 500 | `engine_load_error` |
+| `InputValidationError` | 400 | `input_validation_error` |
+| `ProcessingError` | 500 | `processing_error` |
+| `RasterReadError` | 400 | `raster_read_error` |
+| `RasterWriteError` | 500 | `raster_write_error` |
+| `UnknownDetectorError` | 400 | `unknown_detector` |
+| `UnsupportedFormatError` | 400 | `unsupported_format` |
+| `UploadTooLargeError` | 413 | `upload_too_large` |
+
+补充两行（非 `errors.py` 类，但属统一错误形状）：
+
+* **422**（请求校验失败，`RequestValidationError`）：保留 422 状态码；`detail` 归一为 `"请求参数不符合要求"`，`code` 为 `"request_validation_error"`，并附加 `errors` 结构化列表。
+* **500**（未预期异常，`Exception` 兜底处理器）：响应体为**固定字符串** `{"detail": "内部错误", "code": "internal_error"}`。**禁止**含 `str(exc)`、异常类型名、任何栈帧信息与内部路径；完整栈仅进日志。
+
+另：`HTTPException`（如 `GET /api/image` 的 404、框架的 405 等）由 `_http_error` 接管，`code` 取 `http_<状态码>`（如 404 → `"http_404"`），状态码与 `headers` 原样保留。
+
+### 9.6 `GET /api/image/{filename}` 契约
+
+* 成功：返回 `FileResponse`；`media_type` 由文件扩展名推断，产物预览图为 PNG，典型响应 `Content-Type: image/png`。
+* 404 条件：`filename` 不合法或文件不存在，返回 404，`detail` 为 `"文件不存在"`，`code` 为 `"http_404"`。
+* 目录穿越防护（确切判定，两道，见 `routers/detection.py:_artifact_path`，任一不满足即返回 `None` → 404）：
+  1. **纯文件名判定**：`name` 非空；`Path(name).name == name`（不含路径分隔）；不以 `.` 开头；不含 `..`；不含 `/` 或 `\`。
+  2. **resolve 复核**：对 `outputs_dir` 与 `uploads_dir` 逐个，计算 `root = base.resolve()`、`candidate = (root / name).resolve()`，要求 `candidate.relative_to(root)` 成立（解析后的真实路径仍位于基目录内）；任何 `OSError` / `ValueError` 或不在其内则跳过；两者均不匹配返回 `None`。
+  * 两道都必须保留：单独任何一道都有绕过余地（符号链接、Windows 短文件名、大小写差异可让「纯文件名」指向目录外）。
+
+### 9.7 CORS 契约
+
+* 白名单来源：`runtime.allowed_origins`（默认 `["http://localhost:5173", "http://127.0.0.1:5173"]`）。
+* 凭据：`allow_credentials=False`（本服务不使用 Cookie 会话）。
+* `"*"` 处理：配置校验 `RuntimeSettings._reject_wildcard` **禁止** `allowed_origins` 含 `"*"`；应用层 `allow_origins` 直接取配置列表。理由（D1 缺陷修复）：`"*"` 与凭据并存会使浏览器白名单**实际失效**（任何来源都可通过），故两者互斥、通配符在启动期即被拦截。
+
+### 9.8 错误码清单
+
+与 9.5 合并，不重复书写。错误码集合 = 9.5 表中全部 `code` 值；新增领域异常须新增专属 `code`（类属性），**禁止**复用既有 `code`。
+
+### 9.9 配置依赖
+
+HTTP 层依赖的配置项（路径）：
+
+| 配置路径 | 用途 |
+|---|---|
+| `runtime.allowed_origins` | CORS 白名单 |
+| `runtime.max_upload_mb` / `runtime.max_upload_bytes` | 上传体积上限 |
+| `runtime.data_dir` → 派生 `uploads_dir`、`outputs_dir` | 上传与产物落点 |
+| `runtime.host` / `runtime.port` | 服务绑定（`main()` 使用） |
+| `engine.runtime_dll_dir` / `engine.build_dir` | 引擎定位（经错误路径可达） |
+| `logging.level` / `logging.format` | 日志装配 |
+| `postprocess.min_size` / `postprocess.structure_size` | `build_context` 装配后处理器 |
+
+结构性禁令：
+
+* backend 内**禁止**出现机器本地路径字面串（如 `msys64`、`C:/Users/...` 形式）；守护由 `test_architecture.py` 承担（G3.5）。
+* 配置模型 `extra="forbid"`：TOML 出现未声明键即启动期报错。
+
+### 9.10 不变式锚点
+
+HTTP 层不得漂移的基线数值（出处：真实夹具 `before.tif` / `after.tif`，256×256，UTM 50N；含 `DetectionResponse._EXAMPLE` 与 §5.1，守护见 `test_pipeline.py`）：
+
+| 锚点 | 值 |
+|---|---|
+| Otsu 阈值 `threshold` | `5.916767423962816`（契约示例写作 `5.9168`） |
+| 变化像素 | `7209 / 65536` |
+| 真实面积 `changed_area_m2` | `720900 m²`（= 7209 × 100.0） |
+| 影像形状 | `(3, 256, 256)`，`dtype uint16` |
+
+### 9.11 可插拔约定
+
+* 新增检测算法：只在 `detectors/` 下实现 `ChangeDetector` 协议并向 `registry` 注册；后处理器在 `postprocess/` 下实现 `MaskPostprocessor`。
+* **不需要**修改 `pipeline/change_detection.py`：编排层在运行期不 import `detectors/` 与 `postprocess/` 的具体名字，`detector` / `postprocessor` 为必填注入参数，类型标注仅在 `TYPE_CHECKING` 下。
+* 判据（`test_architecture.py` 守护，阶段出口门 G3.4）：新增算法后 `pipeline/change_detection.py` 文件哈希不变。
+
+## 10. 变更记录
+
+> 本节在 `v0.3.0` 之前编号为 **§9**。按旧编号引用本节的报告（例如 `docs/verification/phase-2.1.md` 的「记入 `docs/contracts.md` §9」）指向本节。同一版本内新增的 HTTP 契约占用 §9，故本节顺延。
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | `v0.2.0` | 2026-09-19 | 首次冻结。含对掩膜参数禁止隐式转换（`nb::noconvert`）与 `mask_to_geojson` 拒绝退化 3D 的约定 |
 | `v0.2.1` | 2026-09-23 | 几何基准由像素中心改为**像素角点**（沿像素边界追踪），几何面积与 `area_m2` 一致（§5.1）；默认简化容差 `2.0` → `0.0`，非正即不简化；退化剔除只剩「成员像素少于 3 个」，一像素宽结构不再是退化几何（`multi_region_mask` 的 Feature 数 5 → 6）；`gdal_registration_count()` 收归内部头，不再进入 DLL 导出表；配置模板示例值与 `default.toml`、CMake 预设对齐 |
+| `v0.3.0` | 2026-09-23 | HTTP 接口契约首次冻结（§9）；D1 修复：CORS 通配符 `"*"` 与凭据并存使白名单失效，改为逐列来源 + `allow_credentials=False` 并在配置期拒绝 `"*"`；上传体积上限由 nginx 层隐式 1 MB 改为应用层显式可配（`runtime.max_upload_mb`，默认 500 MB，边收边计、超限即删半成品）；`GET /api/image/{filename}` 目录穿越防护（纯文件名 + resolve 复核两道）；异常不再外泄（领域异常→脱敏 `public_message`，未预期异常 500 固定串「内部错误」）；新增 `backend/src/rschange/tests/` pytest 套件承担 HTTP 契约与分层结构判据 |
