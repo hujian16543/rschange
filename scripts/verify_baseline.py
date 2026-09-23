@@ -180,7 +180,7 @@ def fmt(value: Any, digits: int = 4) -> str:
     return str(value)
 
 
-def main() -> int:  # noqa: C901
+def main() -> int:
     parser = argparse.ArgumentParser(description="rschange 黄金基线校验")
     parser.add_argument(
         "--phase",
@@ -228,8 +228,15 @@ def main() -> int:  # noqa: C901
         EXPECTED_PROJ_MARKER in str(proj),
         EXPECTED_PROJ_MARKER in str(proj),
     )
-    add(Check("7.1", "宽/高/波段", "256/256/3", f"{width}/{height}/{bands}",
-              (width, height, bands) == (256, 256, 3)))
+    add(
+        Check(
+            "7.1",
+            "宽/高/波段",
+            "256/256/3",
+            f"{width}/{height}/{bands}",
+            (width, height, bands) == (256, 256, 3),
+        )
+    )
 
     # -------------------------------------------------------------- 算法链路
     threshold, change_mask = frozen_cva(before, after)
@@ -238,19 +245,47 @@ def main() -> int:  # noqa: C901
     raw_changed = int(change_mask.sum())
     clean_changed = int(clean_mask.sum())
 
-    record("7.1", "Otsu 阈值", EXPECTED_THRESHOLD, threshold,
-           abs(threshold - EXPECTED_THRESHOLD) <= THRESHOLD_TOL)
-    record("7.1", "变化像素（原始）", EXPECTED_CHANGED_RAW, raw_changed,
-           raw_changed == EXPECTED_CHANGED_RAW)
-    record("7.1", "变化像素（后处理后）", EXPECTED_CHANGED_CLEAN, clean_changed,
-           clean_changed == EXPECTED_CHANGED_CLEAN)
+    record(
+        "7.1",
+        "Otsu 阈值",
+        EXPECTED_THRESHOLD,
+        threshold,
+        abs(threshold - EXPECTED_THRESHOLD) <= THRESHOLD_TOL,
+    )
+    record(
+        "7.1",
+        "变化像素（原始）",
+        EXPECTED_CHANGED_RAW,
+        raw_changed,
+        raw_changed == EXPECTED_CHANGED_RAW,
+    )
+    record(
+        "7.1",
+        "变化像素（后处理后）",
+        EXPECTED_CHANGED_CLEAN,
+        clean_changed,
+        clean_changed == EXPECTED_CHANGED_CLEAN,
+    )
     expected_rate = EXPECTED_CHANGED_CLEAN / TOTAL_PIXELS
     actual_rate = clean_changed / TOTAL_PIXELS
-    add(Check("7.1", "变化率", fmt(expected_rate, 6), fmt(actual_rate, 6),
-              abs(actual_rate - expected_rate) <= RATE_TOL))
-    add(Check("7.1", "真实变化面积 m²", fmt(EXPECTED_TRUE_AREA, 1),
-              fmt(clean_changed * PIXEL_AREA_M2, 1),
-              abs(clean_changed * PIXEL_AREA_M2 - EXPECTED_TRUE_AREA) <= AREA_TOL))
+    add(
+        Check(
+            "7.1",
+            "变化率",
+            fmt(expected_rate, 6),
+            fmt(actual_rate, 6),
+            abs(actual_rate - expected_rate) <= RATE_TOL,
+        )
+    )
+    add(
+        Check(
+            "7.1",
+            "真实变化面积 m²",
+            fmt(EXPECTED_TRUE_AREA, 1),
+            fmt(clean_changed * PIXEL_AREA_M2, 1),
+            abs(clean_changed * PIXEL_AREA_M2 - EXPECTED_TRUE_AREA) <= AREA_TOL,
+        )
+    )
 
     # ------------------------------------------------- 独立对照：连通域个数
     from scipy import ndimage
@@ -280,22 +315,48 @@ def main() -> int:  # noqa: C901
     record("7.1", "每个环首尾闭合", True, ring_closed, ring_closed)
 
     # -------------------------------------------------------------- §7.2 缺陷
-    add(Check("7.2", "GeoJSON Feature 个数", str(TARGET_FEATURE_COUNT), str(n_features),
-              n_features == TARGET_FEATURE_COUNT,
-              note=f"旧引擎实际输出 {LEGACY_FEATURE_COUNT}（缺陷：单连通域被劈成多段弧）"))
-    add(Check("7.2", "属性面积合计 m²", fmt(TARGET_AREA_SUM, 1), fmt(area_sum, 1),
-              abs(area_sum - TARGET_AREA_SUM) <= AREA_TOL,
-              note=f"旧引擎实际输出 {LEGACY_AREA_SUM:.1f}（缺陷：面积重复计 2 倍）"))
+    add(
+        Check(
+            "7.2",
+            "GeoJSON Feature 个数",
+            str(TARGET_FEATURE_COUNT),
+            str(n_features),
+            n_features == TARGET_FEATURE_COUNT,
+            note=f"旧引擎实际输出 {LEGACY_FEATURE_COUNT}（缺陷：单连通域被劈成多段弧）",
+        )
+    )
+    add(
+        Check(
+            "7.2",
+            "属性面积合计 m²",
+            fmt(TARGET_AREA_SUM, 1),
+            fmt(area_sum, 1),
+            abs(area_sum - TARGET_AREA_SUM) <= AREA_TOL,
+            note=f"旧引擎实际输出 {LEGACY_AREA_SUM:.1f}（缺陷：面积重复计 2 倍）",
+        )
+    )
 
     # -------------------------------------------------------------- §7.3 语义
-    add(Check("7.3", "Feature 数 == 连通域个数",
-              str(n_components), str(n_features),
-              n_features == n_components,
-              note="连通域个数由 scipy 独立计算，不依赖被测代码"))
+    add(
+        Check(
+            "7.3",
+            "Feature 数 == 连通域个数",
+            str(n_components),
+            str(n_features),
+            n_features == n_components,
+            note="连通域个数由 scipy 独立计算，不依赖被测代码",
+        )
+    )
     expected_area_sem = clean_changed * PIXEL_AREA_M2
-    add(Check("7.3", "面积合计 == 像素数 × 单像元面积",
-              fmt(expected_area_sem, 1), fmt(area_sum, 1),
-              abs(area_sum - expected_area_sem) <= AREA_TOL))
+    add(
+        Check(
+            "7.3",
+            "面积合计 == 像素数 × 单像元面积",
+            fmt(expected_area_sem, 1),
+            fmt(area_sum, 1),
+            abs(area_sum - expected_area_sem) <= AREA_TOL,
+        )
+    )
 
     # ================================================= 多区域夹具（§7.3 判据）
     # 单连通域夹具覆盖不到两类语义：label 分配顺序（D-6）、多区域时的
@@ -339,10 +400,16 @@ def main() -> int:  # noqa: C901
         raise SystemExit("[夹具错误] 多区域夹具存在像素数相同的区域，无法据像素数序列判定顺序")
 
     # 三方对照：几何定义（元数据）↔ scipy ↔ 引擎。
-    add(Check("7.3", "夹具元数据顺序 == scipy 首次出现顺序",
-              fmt(meta_counts), fmt(scipy_counts),
-              meta_counts == scipy_counts,
-              note="元数据由几何定义直接写出，与任何实现无关"))
+    add(
+        Check(
+            "7.3",
+            "夹具元数据顺序 == scipy 首次出现顺序",
+            fmt(meta_counts),
+            fmt(scipy_counts),
+            meta_counts == scipy_counts,
+            note="元数据由几何定义直接写出，与任何实现无关",
+        )
+    )
 
     multi_geojson = spatial.mask_to_geojson(multi_mask, multi_meta["geo_transform"])
     multi_features = json.loads(multi_geojson).get("features", [])
@@ -350,13 +417,26 @@ def main() -> int:  # noqa: C901
     engine_counts = [int(f["properties"]["pixel_count"]) for f in multi_features]
     expected_counts = [c for c in scipy_counts if c not in dropped_counts]
 
-    add(Check("7.3", "多区域 label 序列（退化项剔除后）", fmt(kept_labels), fmt(engine_labels),
-              engine_labels == kept_labels,
-              note=f"连通域 {multi_components} 个，其中 {len(dropped_counts)} 个退化轮廓不产出 Feature"))
-    add(Check("7.3", "多区域 Feature 顺序 == scipy 顺序",
-              fmt(expected_counts), fmt(engine_counts),
-              engine_counts == expected_counts,
-              note="期望顺序为各连通域首次出现的 raster-scan 位置序；旧实现用 unordered_map 分组，迭代序未定义（D-6）"))
+    add(
+        Check(
+            "7.3",
+            "多区域 label 序列（退化项剔除后）",
+            fmt(kept_labels),
+            fmt(engine_labels),
+            engine_labels == kept_labels,
+            note=f"连通域 {multi_components} 个，其中 {len(dropped_counts)} 个退化轮廓不产出 Feature",
+        )
+    )
+    add(
+        Check(
+            "7.3",
+            "多区域 Feature 顺序 == scipy 顺序",
+            fmt(expected_counts),
+            fmt(engine_counts),
+            engine_counts == expected_counts,
+            note="期望顺序为各连通域首次出现的 raster-scan 位置序；旧实现用 unordered_map 分组，迭代序未定义（D-6）",
+        )
+    )
 
     # ------------------------------------------------- 几何合法性（GEOS 判定）
     # 引擎自己的 `forms_polygon` 只判「顶点数够且不共线」，那是 GEOS 要求的
@@ -367,8 +447,7 @@ def main() -> int:  # noqa: C901
         from shapely.geometry import shape as shapely_shape
     except ImportError as exc:  # pragma: no cover
         raise SystemExit(
-            "[依赖缺失] 几何合法性判据需要 shapely。\n  安装：uv sync --group dev\n"
-            f"  原因：{exc}"
+            f"[依赖缺失] 几何合法性判据需要 shapely。\n  安装：uv sync --group dev\n  原因：{exc}"
         ) from exc
 
     audit_targets: list[tuple[str, list[dict[str, Any]]]] = [
@@ -401,13 +480,21 @@ def main() -> int:  # noqa: C901
     reported_area = area_sum + sum(float(f["properties"]["area_m2"]) for f in multi_features)
     deviation = (geometry_area - reported_area) / reported_area * 100.0 if reported_area else 0.0
 
-    add(Check("7.3", "多边形可被 GEOS 解析且不自交", f"全部合法（{total_features} 个）",
-              f"{total_features - len(violations)}/{total_features} 合法",
-              not violations,
-              note=(f"洞环合计 {hole_total} 个；几何面积合计 {fmt(geometry_area, 1)} m²，"
-                    f"上报面积合计 {fmt(reported_area, 1)} m²，偏差 {deviation:.2f}%"
-                    "（已声明约定：环取像素中心，故几何面积为内接多边形）"
-                    + ("；" + "；".join(violations[:3]) if violations else ""))))
+    add(
+        Check(
+            "7.3",
+            "多边形可被 GEOS 解析且不自交",
+            f"全部合法（{total_features} 个）",
+            f"{total_features - len(violations)}/{total_features} 合法",
+            not violations,
+            note=(
+                f"洞环合计 {hole_total} 个；几何面积合计 {fmt(geometry_area, 1)} m²，"
+                f"上报面积合计 {fmt(reported_area, 1)} m²，偏差 {deviation:.2f}%"
+                "（已声明约定：环取像素中心，故几何面积为内接多边形）"
+                + ("；" + "；".join(violations[:3]) if violations else "")
+            ),
+        )
+    )
 
     # ============================================================ 输出
     phase = args.phase
@@ -415,8 +502,11 @@ def main() -> int:  # noqa: C901
     print("=" * 112)
     print(f"rschange 黄金基线校验  ·  仓库根 {REPO_ROOT}")
     print(f"引擎目录 {build_dir}")
-    print(f"期望模式 {'Phase 1：§7.1 应通过，§7.2/7.3 应失败' if phase <= 1 else 'Phase 2+：全部应通过'}")
+    print(
+        f"期望模式 {'Phase 1：§7.1 应通过，§7.2/7.3 应失败' if phase <= 1 else 'Phase 2+：全部应通过'}"
+    )
     print("=" * 112)
+
     def pad(text: str, width: int) -> str:
         """按终端显示宽度左对齐补齐：CJK 字符占两列，超宽则截断。"""
         clipped = text
@@ -428,14 +518,18 @@ def main() -> int:  # noqa: C901
                 break
         return clipped + " " * max(0, width - display)
 
-    print(pad("组", 5) + pad("判定项", 40) + pad("期望", 30) + pad("实际", 30) + pad("结果", 7) + "备注")
+    print(
+        pad("组", 5)
+        + pad("判定项", 40)
+        + pad("期望", 30)
+        + pad("实际", 30)
+        + pad("结果", 7)
+        + "备注"
+    )
     print("-" * 112)
 
     for check in checks:
-        if check.skipped:
-            result = "SKIP"
-        else:
-            result = "PASS" if check.passed else "FAIL"
+        result = "SKIP" if check.skipped else ("PASS" if check.passed else "FAIL")
         print(
             pad(check.group, 5)
             + pad(check.name, 40)
@@ -452,7 +546,11 @@ def main() -> int:  # noqa: C901
         ok = sum(1 for c in items if c.passed)
         return ok, len(items)
 
-    for group, label in (("7.1", "§7.1 不变量"), ("7.2", "§7.2 缺陷基线"), ("7.3", "§7.3 语义断言")):
+    for group, label in (
+        ("7.1", "§7.1 不变量"),
+        ("7.2", "§7.2 缺陷基线"),
+        ("7.3", "§7.3 语义断言"),
+    ):
         ok, total = group_status(group)
         print(f"  {label:<18} {ok}/{total} 通过")
 
@@ -469,7 +567,9 @@ def main() -> int:  # noqa: C901
 
     print()
     print(f"期望：{expectation}")
-    print(f"结论：{'通过 —— Phase ' + str(phase) + ' 预期状态已达成' if satisfied else '不通过 —— 与 Phase ' + str(phase) + ' 预期不符'}")
+    print(
+        f"结论：{'通过 —— Phase ' + str(phase) + ' 预期状态已达成' if satisfied else '不通过 —— 与 Phase ' + str(phase) + ' 预期不符'}"
+    )
     print()
 
     return 0 if satisfied else 1

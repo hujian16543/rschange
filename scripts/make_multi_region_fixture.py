@@ -136,7 +136,9 @@ def main() -> int:
     # 判定顺序所用的观测值是「Feature 的像素数序列」。两个区域像素数相同即
     # 交换位置后观测值不变，判据失效，故此处直接拒绝这种布局。
     counts_seen = [int(r["pixel_count"]) for r in regions]
-    assert len(set(counts_seen)) == len(counts_seen), f"各区域像素数必须两两不同，实得 {counts_seen}"
+    assert len(set(counts_seen)) == len(counts_seen), (
+        f"各区域像素数必须两两不同，实得 {counts_seen}"
+    )
 
     meta = {
         "width": WIDTH,
@@ -170,13 +172,21 @@ def main() -> int:
     json_path = FIXTURES / "multi_region_mask.json"
 
     raw_path.write_bytes(mask.tobytes(order="C"))
+    # newline="\n" 不可省。`write_text` 在 Windows 下默认把 \n 转成 \r\n，而
+    # .gitattributes 对本文件声明的是 `* text=auto eol=lf`。不指定位行尾，就会
+    # 出现「每次重跑本脚本都让夹具 JSON 产生行尾差异」——夹具的冻结性随之失效
+    # （同一份输入在 Windows 与 Linux 上产出不同字节）。
     json_path.write_text(
-        json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
 
     print(f"[写入] {raw_path}  ({raw_path.stat().st_size} 字节)")
     print(f"[写入] {json_path}")
-    print(f"       连通域 {len(regions)} 个 / 退化 {len(degenerate)} 个 / Feature {len(with_feature)} 个")
+    print(
+        f"       连通域 {len(regions)} 个 / 退化 {len(degenerate)} 个 / Feature {len(with_feature)} 个"
+    )
     print(f"       着色像素 {changed_pixels} / 计入 Feature 的像素 {expected_pixels_in_features}")
     for entry in regions:
         mark = "产出 Feature" if entry["expected_feature"] else "剔除（退化）"
