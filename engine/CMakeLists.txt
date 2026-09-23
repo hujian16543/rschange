@@ -86,22 +86,27 @@ if(DEFINED _spatial_saved_cmake_prefix_path)
 endif()
 
 # ---------------------------------------------------------------------------
-# 引擎共享库
+# 引擎库：共享库 + 静态库
 # ---------------------------------------------------------------------------
+# 源码列表只写一份，两个 target 共用。写成两份必然漂移：新增一个 .cpp 时只改
+# 一处，另一个 target 便在链接期以「未定义符号」的形式暴露——而那时错误信息
+# 指向调用方，不指向漏改的列表。
+set(
+    SPATIAL_SOURCES
+    src/contour.cpp
+    src/gdal_init.cpp
+    src/geojson.cpp
+    src/labeling.cpp
+    src/raster_io.cpp
+    src/simplify.cpp
+    src/version.cpp
+)
+
+# 共享库：Python 扩展 _spatial 的链接目标，也是唯一被安装的引擎产物。
 add_library(spatial SHARED)
 add_library(spatial::spatial ALIAS spatial)
 
-target_sources(
-    spatial
-    PRIVATE
-        src/contour.cpp
-        src/gdal_init.cpp
-        src/geojson.cpp
-        src/labeling.cpp
-        src/raster_io.cpp
-        src/simplify.cpp
-        src/version.cpp
-)
+target_sources(spatial PRIVATE ${SPATIAL_SOURCES})
 
 target_include_directories(
     spatial
@@ -115,6 +120,36 @@ target_compile_definitions(spatial PRIVATE SPATIAL_BUILDING)
 
 target_link_libraries(
     spatial
+    PRIVATE
+        GDAL::GDAL
+        nlohmann_json::nlohmann_json
+        spatial_warnings
+)
+
+# 静态库：仅供 engine/tests/ 链接，不安装、不进任何发布产物。
+#
+# 存在的理由是「测试探针不得出现在共享库导出表里」：单元测试需要读取
+# spatial::internal::gdal_registration_count()，而该符号被刻意排除在 DLL
+# 导出面之外（见 src/internal/gdal_registry.hpp）。静态链接没有导出表这一层，
+# 测试因而能用同一份源码、同一份内部状态做出断言，共享库的消费者却看不到它。
+#
+# SPATIAL_STATIC 以 PUBLIC 传播：测试自身也 include spatial/export.hpp，若不
+# 定义该宏就会按消费方走 dllimport，去链接并不存在的导入库。
+add_library(spatial_static STATIC)
+add_library(spatial::static ALIAS spatial_static)
+
+target_sources(spatial_static PRIVATE ${SPATIAL_SOURCES})
+
+target_include_directories(
+    spatial_static
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_compile_definitions(spatial_static PUBLIC SPATIAL_STATIC)
+
+target_link_libraries(
+    spatial_static
     PRIVATE
         GDAL::GDAL
         nlohmann_json::nlohmann_json
