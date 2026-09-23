@@ -41,13 +41,31 @@ members = ["backend"]
 # ------------------------------------------------------------
 # Ruff
 # ------------------------------------------------------------
+# 检查范围：backend/ 与 scripts/。
+#
+# 范围不写在本文件里——ruff 没有「检查哪些目录」的配置项，范围由调用方给出：
+#   uv run ruff check backend/ scripts/  &&  uv run ruff format --check backend/ scripts/
+# 调用点有两处，改动时须同步：scripts/bootstrap.ps1、scripts/bootstrap.sh。
+#
+# frontend/ 不在此列（TypeScript，另有工具链）；data/、notebooks/ 不做 lint。
 [tool.ruff]
 line-length = 100
-src = ["backend/src"]
+src = ["backend/src", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
-ignore = ["E501"]
+
+# 两条忽略都不是「放行缺陷」，各有明确理由：
+#
+# * E501（行过长）——由 formatter 的 line-length 承担，再报一遍是重复。
+# * RUF001/002/003（字符串 / 文档串 / 注释里的「歧义 Unicode 字符」）——检的是
+#   全角标点（： ， （ ） 。）与全角字母。本仓库注释与文档串以中文书写，中文
+#   行文里全角标点才是正确写法；这三条规则在中文代码库上是固有误报。实测
+#   253 项报告里 246 项属此类，逐处 noqa 只会污染代码而不产生任何修复价值。
+#
+# 禁止用 `# noqa: RUF002` 逐处压制：那等于把全仓库的中文标点问题拆成 N 个
+# 局部例外，规则一旦调整就无人能判断哪些例外还有效。
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.format]
 quote-style = "double"
