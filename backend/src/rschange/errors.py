@@ -28,6 +28,7 @@ from typing import ClassVar
 
 __all__ = [
     "ConfigError",
+    "CrsError",
     "EngineError",
     "EngineLoadError",
     "InputValidationError",
@@ -77,6 +78,21 @@ class ConfigError(RsChangeError):
 
     code: ClassVar[str] = "config_error"
     default_public_message: ClassVar[str] = "服务端配置错误"
+
+
+class CrsError(RsChangeError):
+    """影像缺少坐标系，或其 WKT 无法解析。
+
+    归为 400：WKT 直接来自上传的栅格文件，无投影的 TIFF 属输入问题。
+
+    旧实现在此处 `except Exception: return geojson_str`，把未经变换的投影坐标
+    （米单位）当作经纬度返回。前端据此绘图得到的是一张看似正常、位置完全错误的
+    地图，且没有任何报错。改为显式失败。
+    """
+
+    http_status: ClassVar[int] = 400
+    code: ClassVar[str] = "crs_error"
+    default_public_message: ClassVar[str] = "影像缺少坐标系或坐标系无法解析"
 
 
 class EngineError(RsChangeError):
