@@ -35,6 +35,7 @@ __all__ = [
     "RasterReadError",
     "RasterWriteError",
     "RsChangeError",
+    "UnknownDetectorError",
     "UnsupportedFormatError",
 ]
 
@@ -117,6 +118,18 @@ class UnsupportedFormatError(RsChangeError):
     http_status: ClassVar[int] = 400
     code: ClassVar[str] = "unsupported_format"
     default_public_message: ClassVar[str] = "不支持的文件类型"
+
+
+class UnknownDetectorError(RsChangeError):
+    """请求了未注册的检测算法名。
+
+    当前 HTTP 接口不暴露算法选择参数，故本异常只可能由内部误用触发。保留它
+    是为了让将来「请求里带算法名」时有现成的语义与状态码，不必临时新增类型。
+    """
+
+    http_status: ClassVar[int] = 400
+    code: ClassVar[str] = "unknown_detector"
+    default_public_message: ClassVar[str] = "不支持的检测算法"
 
 
 class InputValidationError(RsChangeError):

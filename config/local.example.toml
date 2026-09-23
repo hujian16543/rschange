@@ -66,6 +66,21 @@
 # level = "INFO"        # DEBUG / INFO / WARNING / ERROR
 # format = "console"    # console | json
 
+[postprocess]
+# ------------------------------------------------------------
+# 掩膜后处理的形态学参数。默认值 30 / 3 即 Phase 2 基线所用值。
+#
+# min_size：连通块像素数不超过该值的块会被剔除。
+#   注意判定是「严格大于」：min_size = 30 表示保留 31 像素及以上的块。
+#   调大会误删真实的小面积变化；调小会保留碎斑。
+#
+# structure_size：闭运算结构元边长（像素），1 表示不做闭运算。
+#
+# 环境变量形式：RSCHANGE_POSTPROCESS__MIN_SIZE=50
+# ------------------------------------------------------------
+# min_size = 30
+# structure_size = 3
+
 [baseline]
 # fixtures_dir：黄金基线 fixture（before.tif / after.tif、变更掩膜）所在目录
 # fixtures_dir = "./engine/tests/fixtures"
