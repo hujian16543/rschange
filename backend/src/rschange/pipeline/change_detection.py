@@ -61,6 +61,7 @@ __all__ = [
     "DetectionOutcome",
     "DetectionRequest",
     "PreviewImage",
+    "PreviewKind",
     "detect_change",
 ]
 

@@ -38,6 +38,7 @@ __all__ = [
     "RsChangeError",
     "UnknownDetectorError",
     "UnsupportedFormatError",
+    "UploadTooLargeError",
 ]
 
 
@@ -134,6 +135,20 @@ class UnsupportedFormatError(RsChangeError):
     http_status: ClassVar[int] = 400
     code: ClassVar[str] = "unsupported_format"
     default_public_message: ClassVar[str] = "不支持的文件类型"
+
+
+class UploadTooLargeError(RsChangeError):
+    """上传文件超过 `runtime.max_upload_mb`。
+
+    归为 413。旧实现把体积上限写进配置却从未校验，边读边写盘，因此实际上限由
+    反向代理决定（而旧 `nginx.conf` 缺 `client_max_body_size`，默认 1 MB，与配置
+    里写的 500 MB 相差两个数量级）。现按 `max_upload_mb` 边收边计，超限即中断并
+    删除已写入的部分文件，不把任意大小的请求体落到磁盘。
+    """
+
+    http_status: ClassVar[int] = 413
+    code: ClassVar[str] = "upload_too_large"
+    default_public_message: ClassVar[str] = "上传文件过大"
 
 
 class UnknownDetectorError(RsChangeError):

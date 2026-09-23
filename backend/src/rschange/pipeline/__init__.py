@@ -22,6 +22,7 @@ from rschange.pipeline.change_detection import (
     DetectionOutcome,
     DetectionRequest,
     PreviewImage,
+    PreviewKind,
     detect_change,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "DetectionOutcome",
     "DetectionRequest",
     "PreviewImage",
+    "PreviewKind",
     "detect_change",
 ]
