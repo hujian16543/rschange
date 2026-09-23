@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "fixture.hpp"
+#include "internal/gdal_registry.hpp"
 #include "spatial/raster.hpp"
 
 namespace {
@@ -42,17 +43,17 @@ SpatialReference fixture_reference() {
 
 TEST_CASE("GDAL 全驱动只注册一次（D-4）", "[raster]") {
     spatial::ensure_gdal_initialized();
-    CHECK(spatial::gdal_registration_count() == 1);
+    CHECK(spatial::internal::gdal_registration_count() == 1);
 
     // 幂等：重复调用不得增加注册次数
     spatial::ensure_gdal_initialized();
     spatial::ensure_gdal_initialized();
-    CHECK(spatial::gdal_registration_count() == 1);
+    CHECK(spatial::internal::gdal_registration_count() == 1);
 
     // read_raster 内部同样会确保初始化，也不得增加注册次数
     const auto raster = spatial::read_raster(fixture::path("before.tif").string());
     CHECK(raster.band_count == kFixtureBands);
-    CHECK(spatial::gdal_registration_count() == 1);
+    CHECK(spatial::internal::gdal_registration_count() == 1);
 }
 
 TEST_CASE("read_raster 读出夹具元数据", "[raster]") {

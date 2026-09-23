@@ -14,11 +14,22 @@
 ///
 /// 约定
 /// ----
-/// 构建引擎自身时由 CMake 定义 `SPATIAL_BUILDING`；消费方（如 `_spatial`
-/// 绑定模块）不定义该宏，此时 Windows 下走 `dllimport`。
+/// 三种编译形态，由 CMake 各定义一个宏区分：
+///
+/// | 形态                  | 宏                 | Windows 下展开为  |
+/// |-----------------------|--------------------|-------------------|
+/// | 构建共享库 `spatial`  | `SPATIAL_BUILDING` | `__declspec(dllexport)` |
+/// | 消费共享库（`_spatial`） | 不定义           | `__declspec(dllimport)` |
+/// | 构建/链接静态库 `spatial_static` | `SPATIAL_STATIC` | 空字符串 |
+///
+/// `SPATIAL_STATIC` 必须优先于 `SPATIAL_BUILDING` 判断。静态库没有导入库，
+/// 若按消费方走 `dllimport`，链接期会去找并不存在的 `libspatial.lib` 导入记录。
+/// 该宏由 `spatial_static` 以 `PUBLIC` 传播，静态链接的测试因此自动取到空展开。
 
 #if defined(_WIN32)
-#  if defined(SPATIAL_BUILDING)
+#  if defined(SPATIAL_STATIC)
+#    define SPATIAL_API
+#  elif defined(SPATIAL_BUILDING)
 #    define SPATIAL_API __declspec(dllexport)
 #  else
 #    define SPATIAL_API __declspec(dllimport)
