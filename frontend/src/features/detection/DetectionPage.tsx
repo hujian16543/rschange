@@ -14,6 +14,7 @@ import { Card } from '@/components/ui'
 import { DetectionButton } from '@/features/detection/components/DetectionButton'
 import { ErrorAlert } from '@/features/detection/components/ErrorAlert'
 import { ResultPanel } from '@/features/detection/components/ResultPanel'
+import { ResultSkeleton } from '@/features/detection/components/ResultSkeleton'
 import { UploadPanel } from '@/features/detection/components/UploadPanel'
 import { useDetection } from '@/features/detection/hooks/useDetection'
 
@@ -122,22 +123,17 @@ function EmptyState() {
 /**
  * 加载态占位。
  *
- * `role="status"` 让读屏播报「正在检测」；用骨架块而非仅一个转圈图标，
- * 是为了提前占住结果区高度，避免结果返回时页面大幅跳动。
+ * 面板标题说明阶段，正文骨架块（`ResultSkeleton`）提前占住结果区高度，
+ * 避免结果返回时页面大幅跳动。
  */
 function LoadingState() {
   return (
     <Card title="正在检测" headingLevel={1}>
-      <p role="status" className="text-body text-text-secondary">
+      <p className="text-body text-text-secondary">
         正在读取影像并计算变化区域，请稍候…
       </p>
-      <div className="mt-section space-y-section" aria-hidden="true">
-        <div className="h-20 animate-pulse rounded-surface bg-surface-raised" />
-        <div className="grid gap-section sm:grid-cols-3">
-          <div className="h-32 animate-pulse rounded-surface bg-surface-raised" />
-          <div className="h-32 animate-pulse rounded-surface bg-surface-raised" />
-          <div className="h-32 animate-pulse rounded-surface bg-surface-raised" />
-        </div>
+      <div className="mt-section">
+        <ResultSkeleton />
       </div>
     </Card>
   )
