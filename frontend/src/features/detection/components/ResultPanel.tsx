@@ -13,6 +13,7 @@
 
 import { useCallback, useMemo } from 'react'
 
+import { imageUrl } from '@/api/client'
 import { Card, StatList, StatRow } from '@/components/ui'
 import {
   formatArea,
@@ -49,11 +50,16 @@ interface AvailablePreview {
 /**
  * 类型谓词：筛出已取到 URL 的条目。
  *
+ * 判据是 `imageUrl`（`null` 与空串都归为「无」）而非单纯的 `!== null`：
+ * 契约（§9.3）允许这三个字段为 `null`，但空串同样是「没有预览图」的一种表达，
+ * 若只判 `null`，空串会一路传到 `<img src="">`，浏览器按当前页面地址发起请求，
+ * 结果是可见的破图加一次无意义的网络往返。
+ *
  * 显式声明为谓词而非内联箭头函数，是为了让收窄后的类型有个可命名的落点，
  * 也避免内联谓词在 `readonly` 数组上触发「谓词类型不可赋值给参数类型」的报错。
  */
 function isAvailable(item: PreviewItem): item is AvailablePreview {
-  return item.url !== null
+  return imageUrl(item.url) !== null
 }
 
 /**
@@ -66,14 +72,15 @@ export function ResultPanel({ result }: ResultPanelProps) {
   /**
    * 三张预览图；任一缺失则整块不渲染，避免出现破图占位。
    *
-   * 逐项判空后用类型谓词过滤，`url` 被收窄为 `string`，下游无需再断言——
-   * `Array.prototype.every` 不会收窄原数组元素类型，故不用它做守卫。
+   * 先用 `imageUrl` 把 `null` 与空串统一归一为「无」，再用类型谓词过滤出可用
+   * 条目，`url` 被收窄为 `string`，下游无需再断言——`Array.prototype.every`
+   * 不会收窄原数组元素类型，故不用它做守卫。
    */
   const previews = useMemo<readonly AvailablePreview[]>(() => {
     const candidates: PreviewItem[] = [
-      { key: 'before', caption: '前时相', url: result.image_before_url },
-      { key: 'after', caption: '后时相', url: result.image_after_url },
-      { key: 'diff', caption: '变化检测（红色为变化区域）', url: result.image_diff_url },
+      { key: 'before', caption: '前时相', url: imageUrl(result.image_before_url) },
+      { key: 'after', caption: '后时相', url: imageUrl(result.image_after_url) },
+      { key: 'diff', caption: '变化检测（红色为变化区域）', url: imageUrl(result.image_diff_url) },
     ]
 
     return candidates.filter(isAvailable)

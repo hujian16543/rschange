@@ -12,6 +12,12 @@ export type { ButtonProps, ButtonSize, ButtonVariant } from '@/components/ui/But
 export { Card } from '@/components/ui/Card'
 export type { CardProps } from '@/components/ui/Card'
 
+export { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+export type { DefaultFallbackProps, ErrorBoundaryProps } from '@/components/ui/ErrorBoundary'
+
+export { Skeleton } from '@/components/ui/Skeleton'
+export type { SkeletonProps } from '@/components/ui/Skeleton'
+
 export { Spinner } from '@/components/ui/Spinner'
 export type { SpinnerProps, SpinnerSize } from '@/components/ui/Spinner'
 

@@ -16,6 +16,8 @@ export type { ErrorAlertProps } from '@/features/detection/components/ErrorAlert
 export { ResultPanel } from '@/features/detection/components/ResultPanel'
 export type { ResultPanelProps } from '@/features/detection/components/ResultPanel'
 
+export { ResultSkeleton } from '@/features/detection/components/ResultSkeleton'
+
 export { UploadPanel } from '@/features/detection/components/UploadPanel'
 export type { UploadPanelProps } from '@/features/detection/components/UploadPanel'
 
