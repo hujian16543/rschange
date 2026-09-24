@@ -1,15 +1,16 @@
 /**
  * 应用根组件。
  *
- * Phase 4 的 T4.1 只负责工程骨架与契约层（类型 + API 客户端）；界面在 T4.2 按
- * `features/detection/` 的目录骨架重建。此处保持最小可运行形态，使 `vite build`
- * 能产出真实产物以支撑 G4.2 的体积核验。
+ * 只做两件事：声明页面级的语言/标题语义，并把功能页摆进来。业务状态全部在
+ * `features/detection/DetectionPage` 里——旧前端把状态、布局、业务混在
+ * `App.tsx` 52 行里，任何功能改动都要动根组件，分层重构正是要切断这条耦合。
+ *
+ * Phase 4 的 T4.1 曾把此处留成最小可运行形态以产出真实构建产物支撑 G4.2 的
+ * 体积核验；T4.2 按其占位注释的指向完成界面迁移。
  */
+
+import { DetectionPage } from '@/features/detection'
+
 export default function App() {
-  return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gray-100">
-      <h1 className="text-lg font-semibold text-gray-800">遥感变化检测平台</h1>
-      <p className="text-sm text-gray-500">前端骨架已就绪，界面迁移见 T4.2。</p>
-    </div>
-  )
+  return <DetectionPage />
 }
