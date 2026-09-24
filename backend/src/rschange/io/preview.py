@@ -10,14 +10,18 @@
 现按波段数分支：1 波段复制为三通道，≥3 波段取前三，2 波段明确拒绝——两个通道
 既拼不出彩色，也没法解释成灰度，静默取前两个只会产出偏色的图。
 
-保持不变的两处（**有意**）
+保持不变的一处（**有意**）
 --------------------------
 * **拉伸口径**：2 / 98 分位线性拉伸到 0–255，`hi - lo < 1e-6` 时令 `hi = lo + 1`
   以避免除零。该项直接决定输出像素值，改动会让所有历史预览图不可比。
-* **掩膜叠加方式**：`Image.new("RGBA", size, (255, 0, 0, 100))` 的初始 alpha 随后
-  被 `putalpha(mask)` **整体覆盖**，因此实际效果是「掩膜处不透明纯红」，而不是
-  半透明叠加——`alpha=100` 是无效参数。把它改成真正的半透明会让输出图肉眼
-  可见地变化，那属于产品决策而非缺陷修复，故保留原样并在此记录。
+
+掩膜叠加的 alpha（v0.3.1 修正）
+-------------------------------
+旧实现写作 `Image.new("RGBA", size, (255, 0, 0, 100))`，但紧随其后的
+`putalpha(mask)` 把 alpha 通道**整体替换**为 `mask * 255`，故 `100` 从未生效，
+实际效果是「掩膜处不透明纯红」（alpha=255）。该行为已由用户裁定修正为
+**真正的半透明叠加**：alpha 取 `mask * _OVERLAY_ALPHA`，掩膜处保留常量
+`_OVERLAY_ALPHA`（默认 100，约 39% 不透明），非掩膜处 alpha=0 即完全透出底图。
 """
 
 from __future__ import annotations
@@ -47,6 +51,9 @@ _MIN_DYNAMIC_RANGE: Final[float] = 1e-6
 
 #: 掩膜叠加色。
 _OVERLAY_RGB: Final[tuple[int, int, int]] = (255, 0, 0)
+
+#: 掩膜叠加的不透明度 (0–255)。掩膜处按此 alpha 与底图混合，非掩膜处完全透出底图。
+_OVERLAY_ALPHA: Final[int] = 100
 
 
 def stretch_percentiles(band: NDArray[np.float32]) -> NDArray[np.float32]:
@@ -121,9 +128,11 @@ def save_rgb_png(
     image = Image.fromarray(np.transpose(rgb, (1, 2, 0)).astype(np.uint8))
 
     if mask is not None:
-        overlay = Image.new("RGBA", image.size, (*_OVERLAY_RGB, 100))
         image = image.convert("RGBA")
-        mask_image = Image.fromarray((mask * 255).astype(np.uint8))
+        overlay = Image.new("RGBA", image.size, (*_OVERLAY_RGB, 0))
+        # 掩膜处取 _OVERLAY_ALPHA，非掩膜处为 0（完全透明）。与旧实现的差别在于
+        # 旧代码在此写入 mask * 255，使 alpha 恒为 0 或 255，构造时的 alpha 被丢弃。
+        mask_image = Image.fromarray((mask * _OVERLAY_ALPHA).astype(np.uint8))
         mask_image = mask_image.resize(image.size, Image.Resampling.NEAREST)
         overlay.putalpha(mask_image)
         image = Image.alpha_composite(image, overlay)

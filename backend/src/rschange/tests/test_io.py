@@ -15,7 +15,7 @@ from pyproj import CRS, Transformer
 
 from rschange.errors import CrsError, EngineError, InputValidationError
 from rschange.io import GEOGRAPHIC_CRS, image_corners, reproject_geojson, save_rgb_png
-from rschange.io.preview import RGB_BANDS, stretch_percentiles
+from rschange.io.preview import _OVERLAY_ALPHA, RGB_BANDS, stretch_percentiles
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -230,11 +230,13 @@ class TestSaveRgbPng:
                 mask=np.zeros((4, 4), dtype=bool),
             )
 
-    def test_mask_overlay_is_opaque_red(self, tmp_path: Path) -> None:
-        """掩膜处为纯红：`putalpha(mask)` 整体覆盖了构造时的 alpha=100。
+    def test_mask_overlay_is_semi_transparent_red(self, tmp_path: Path) -> None:
+        """掩膜处为**半透明**红：alpha 取 `_OVERLAY_ALPHA`，与底图按 alpha 混合。
 
-        `alpha=100` 实际是无效参数。改成真半透明会让输出图肉眼可见地变化，属产品
-        决策而非缺陷修复，故本用例把**当前行为**钉住，避免无声漂移。
+        底图为常数 500 的影像，2/98 分位拉伸后退化为全 0（黑）；掩膜处与
+        `(255, 0, 0, 100)` 合成，结果为 `(100, 0, 0)`——恰等于 alpha 值，因为
+        底色为 0。v0.3.0 及以前此处为不透明纯红 `(255, 0, 0)`，该行为已由用户
+        裁定修正。
         """
         array = np.full((3, 8, 8), 500, dtype=np.uint16)
         mask = np.zeros((8, 8), dtype=bool)
@@ -243,8 +245,36 @@ class TestSaveRgbPng:
 
         with Image.open(path) as image:
             pixels = np.array(image)
-        assert tuple(pixels[4, 4]) == (255, 0, 0), "掩膜内应为纯红"
-        assert tuple(pixels[0, 0]) != (255, 0, 0), "掩膜外不应为纯红"
+        assert tuple(pixels[4, 4]) == (100, 0, 0), "掩膜内应为半透明红（底色为黑）"
+        assert tuple(pixels[0, 0]) == (0, 0, 0), "掩膜外应完全透出底图"
+
+    def test_mask_overlay_preserves_background(self, tmp_path: Path) -> None:
+        """半透明叠加可透出底图：掩膜内绿蓝通道按 `255 - alpha` 衰减而非归零。
+
+        该断言是「半透明」与「不透明」的判别性证据。底图取两段灰度，掩膜覆盖较亮
+        的一段（拉伸后为 255）：叠加后绿蓝通道为 `255 × (1 - 100/255) = 155`，
+        恰等于 `255 - _OVERLAY_ALPHA`；若回退为不透明纯红，绿蓝通道会归零为 0。
+        掩膜外的像素与不传掩膜的渲染结果逐位相同。
+        """
+        array = np.zeros((3, 8, 8), dtype=np.uint16)
+        array[:, :, :4] = 100
+        array[:, :, 4:] = 900
+        mask = np.zeros((8, 8), dtype=bool)
+        mask[:, 4:] = True
+
+        plain_path = save_rgb_png(array, tmp_path / "plain.png")
+        masked_path = save_rgb_png(array, tmp_path / "masked.png", mask=mask)
+        with Image.open(plain_path) as image:
+            plain = np.array(image)
+        with Image.open(masked_path) as image:
+            masked = np.array(image)
+
+        # 掩膜外的像素必须与基准完全相同
+        assert np.array_equal(masked[:, :4], plain[:, :4]), "掩膜外不应被改动"
+        # 掩膜内衬底为白（255）：绿蓝通道衰减到 255 - alpha，证明 alpha 生效
+        assert tuple(masked[4, 6]) == (255, 255 - _OVERLAY_ALPHA, 255 - _OVERLAY_ALPHA)
+        # 反向证据：若为不透明纯红，绿蓝通道应归零
+        assert int(masked[4, 6][1]) != 0 and int(masked[4, 6][2]) != 0, "半透明不应遮蔽底图"
 
     def test_constant_image_writes_file(self, tmp_path: Path) -> None:
         path = save_rgb_png(np.full((3, 8, 8), 7, dtype=np.uint16), tmp_path / "const.png")
