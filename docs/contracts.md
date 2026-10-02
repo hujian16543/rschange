@@ -309,10 +309,14 @@ HTTP 层不得漂移的基线数值（出处：真实夹具 `before.tif` / `afte
 
 * **机器可读形态**：`docs/api/openapi.json`（OpenAPI `3.1.0`），由 `scripts/gen_openapi.py` 从 `create_app()` 生成，**冻结入库**。生成使用桩算法与桩后处理器（`build_context` 的显式注入口），不触及 `_spatial`，故**无需 GDAL 环境即可复现**。
 * 该文件的 `info.version` 取自 `rschange.__version__`，后者取自 `backend/pyproject.toml`。版本号一致性由 `scripts/verify_version.py` 第 5 项守护。
-* **前端类型**：`frontend/src/api/generated/schema.ts` 由该文件经 `scripts/gen-api-types.ps1` / `.sh`（`openapi-typescript`）生成，**入库**；`frontend/src/api/types.ts` 只是生成 schema 的转发别名，不含手写字段。原手写类型 `frontend/src/types/detection.ts` 已删除。
+* **前端类型**：`frontend/src/api/generated/data-contracts.ts` 由 `docs/api/openapi.json` 经 `scripts/gen-api-types.ps1` / `.sh`（`swagger-typescript-api`）生成，**入库**；`frontend/src/api/types.ts` 只是生成类型的转发别名，不含手写字段。原手写类型 `frontend/src/types/detection.ts` 已删除。
+  * 工具选择有约束：`openapi-typescript` 的 peer 依赖要求 `typescript@^5.x`，与本仓库的 `~6.0.2` 冲突，故**禁止**换回前者。
+  * 生成文件头部带 `// @ts-nocheck`（生成器的固定产物），故该文件自身不受 `tsc` 检查。编译期防线因此设在转发层 `frontend/src/api/types.ts`：其内以 `@ts-expect-error` 固化「`status` 已移除」——该指令只在**确实报错**时才被消费，字段被加回时它转为「未使用」而报 `TS2578`。
+* **产物可复现**：`docs/api/openapi.json` 由 `gen_openapi.py` 以固定键序（`sort_keys=True`）与固定换行（`LF`）写出，与 `config/local.toml`、`RSCHANGE_*` 环境变量及 `_spatial` 是否可用均无关，故同一份代码在 Windows 与 Linux 上产出**逐字节相同**的文件。
 * **漂移检测**（阶段出口门 G5.2 的载体）：
-  * `uv run python scripts/gen_openapi.py --check` —— 重新生成并与入库文件逐字节比对，不一致即退出码 `1`。
-  * `tests/contract/` 内的用例承担同一判据，另加「三方字段一致性」（pydantic 模型字段 == OpenAPI schema 属性 == 前端生成 schema 字段名）。
+  * `uv run python scripts/gen_openapi.py --check` —— 重新生成并与入库文件**逐字节**比对，不一致即退出码 `1`。比对在字节层进行：若改用文本比对，通用换行翻译（`CRLF → LF`）会把一份被 Windows 工具写坏的产物判为「一致」。
+  * `tests/contract/` 内的用例承担同一判据，另加「三方字段一致性」（pydantic 模型字段 == OpenAPI schema 属性 == 前端生成类型字段名）。
+* **已知覆盖边界**：三方一致性判据比对的是字段的**名、个数、必填性与 `status` 的有无**，**不比对字段类型**。因此当「`docs/api/openapi.json` 已重新生成、前端类型未重新生成」且字段名未变、仅类型变化时，契约判据可能不报警（当前 schema 下多数类型变化会因运行期序列化失败被 `tests/contract/test_wire_format.py` 兜住，但**不得**依赖这一巧合）。补「`openapi.json` ↔ 生成类型」的类型比对，或增设与 `gen_openapi.py --check` 对称的「生成类型零漂移」判据，属遗留项（见 `docs/verification/phase-5.md` §11.1）。
 * **反向验证**：故意改动后端响应字段而**不**重新生成契约产物时，上述门禁**必须**变红。不红即说明契约未真正生效，判不通过。
 
 ## 10. 变更记录
@@ -324,4 +328,4 @@ HTTP 层不得漂移的基线数值（出处：真实夹具 `before.tif` / `afte
 | `v0.2.0` | 2026-09-19 | 首次冻结。含对掩膜参数禁止隐式转换（`nb::noconvert`）与 `mask_to_geojson` 拒绝退化 3D 的约定 |
 | `v0.2.1` | 2026-09-23 | 几何基准由像素中心改为**像素角点**（沿像素边界追踪），几何面积与 `area_m2` 一致（§5.1）；默认简化容差 `2.0` → `0.0`，非正即不简化；退化剔除只剩「成员像素少于 3 个」，一像素宽结构不再是退化几何（`multi_region_mask` 的 Feature 数 5 → 6）；`gdal_registration_count()` 收归内部头，不再进入 DLL 导出表；配置模板示例值与 `default.toml`、CMake 预设对齐 |
 | `v0.3.0` | 2026-09-23 | HTTP 接口契约首次冻结（§9）；D1 修复：CORS 通配符 `"*"` 与凭据并存使白名单失效，改为逐列来源 + `allow_credentials=False` 并在配置期拒绝 `"*"`；上传体积上限由 nginx 层隐式 1 MB 改为应用层显式可配（`runtime.max_upload_mb`，默认 500 MB，边收边计、超限即删半成品）；`GET /api/image/{filename}` 目录穿越防护（纯文件名 + resolve 复核两道）；异常不再外泄（领域异常→脱敏 `public_message`，未预期异常 500 固定串「内部错误」）；新增 `backend/src/rschange/tests/` pytest 套件承担 HTTP 契约与分层结构判据 |
-| `v0.5.0` | 2026-10-02 | **契约收缩**：移除 `DetectionResponse.status`，成功响应字段 13 → 12（该字段恒为 `"success"`，不携带信息，错误一律走状态码与 `ErrorResponse`）；**版本号收敛**为 `backend/pyproject.toml` 单一真相源，`rschange.__version__` 改读发行版元数据（原字面量停在 `0.3.0`，与仓库实际版本漂移且会冻入契约产物），新增 `scripts/verify_version.py` 守护；**契约产物入库**：`docs/api/openapi.json` 与 `frontend/src/api/generated/schema.ts`（§9.12），前端手写类型删除，改由 OpenAPI 生成。注：`v0.4.0`（Phase 4 前端工程化）未改动本契约。 |
+| `v0.5.0` | 2026-10-02 | **契约收缩**：移除 `DetectionResponse.status`，成功响应字段 13 → 12（该字段恒为 `"success"`，不携带信息，错误一律走状态码与 `ErrorResponse`）；**版本号收敛**为 `backend/pyproject.toml` 单一真相源，`rschange.__version__` 改读发行版元数据（原字面量停在 `0.3.0`，与仓库实际版本漂移且会冻入契约产物），新增 `scripts/verify_version.py` 守护；**契约产物入库**：`docs/api/openapi.json` 与 `frontend/src/api/generated/data-contracts.ts`（§9.12），前端手写类型删除，改由 OpenAPI 生成（生成器为 `swagger-typescript-api`，**非** `openapi-typescript`——后者与本仓库 TS 6 的 peer 依赖冲突）。注：`v0.4.0`（Phase 4 前端工程化）未改动本契约。 |
