@@ -29,10 +29,12 @@
       "name": "linux-base",
       "hidden": true,
       "displayName": "Linux (Debug)",
+      "description": "需要环境变量 SPATIAL_PYTHON；GDAL 由系统包提供（apt install libgdal-dev）",
       "inherits": "base",
       "generator": "Ninja",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "Python_EXECUTABLE": "$env{SPATIAL_PYTHON}"
       }
     },
     {
