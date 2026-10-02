@@ -53,8 +53,11 @@ from verify_config import Check, pad
 #: 真相源所在文件。改版本号只改这一处。
 SOURCE_OF_TRUTH: Final[Path] = REPO_ROOT / "backend" / "pyproject.toml"
 
-#: 其余必须与真相源同号的声明点。
-PEER_FILES: Final[tuple[tuple[str, Path, str], ...]] = (
+#: 其余必须与真相源同号的声明点：`(组号, 说明, 文件路径)`。
+#:
+#: 元组顺序即解包顺序，注解必须与磁盘上的元素顺序一致——曾把注解写成
+#: `(str, Path, str)`，运行期因解包顺序恰好正确而无症状，只有类型检查能发现。
+PEER_FILES: Final[tuple[tuple[str, str, Path], ...]] = (
     ("2", "frontend/package.json", REPO_ROOT / "frontend" / "package.json"),
     ("3", "工作区根 pyproject.toml", REPO_ROOT / "pyproject.toml"),
 )

@@ -19,8 +19,10 @@
 
 输出确定性
 ----------
-`sort_keys=True`、`indent=2`、`ensure_ascii=False` 且以换行结尾。键序在 JSON 中
-无语义，固定它只为让「重新生成 = 零 diff」成为一个可靠判据。
+`sort_keys=True`、`indent=2`、`ensure_ascii=False`，换行固定为 LF，且以换行结尾。
+键序在 JSON 中无语义，固定它只为让「重新生成 = 零 diff」成为一个可靠判据；
+换行固定为 LF 则使同一份代码在 Windows 与 Linux 上产出的文件**逐字节相同**——
+`--check` 比对的是字节而不是文本，因此 Windows 的换行翻译无法把漂移藏起来。
 
 用法
 ----
@@ -54,6 +56,11 @@ OUTPUT: Final[Path] = REPO_ROOT / "docs" / "api" / "openapi.json"
 _MAX_DIFF_LINES: Final[int] = 60
 
 _INDENT: Final[int] = 2
+
+#: 产物换行符，显式固定为 LF。`Path.write_text()` 默认会把 `\n` 翻译成平台换行符，
+#: 在 Windows 上生成 CRLF 文件：同一份代码产出的字节因平台而异，与本文档「跨平台
+#: 逐字节复现」的声明矛盾，sha256 也因此不能作为判据。写盘时显式指定即可消除。
+_NEWLINE: Final[str] = "\n"
 
 
 class _SchemaOnlyDetector:
@@ -93,8 +100,8 @@ def _schema_only_context() -> RuntimeContext:
 
     return Context(
         settings=Settings(),
-        detector=_SchemaOnlyDetector(),  # type: ignore[arg-type]
-        postprocessor=_SchemaOnlyPostprocessor(),  # type: ignore[arg-type]
+        detector=_SchemaOnlyDetector(),
+        postprocessor=_SchemaOnlyPostprocessor(),
     )
 
 
@@ -124,22 +131,32 @@ def _unified_diff(expected: str, actual: str) -> str:
 
 
 def check() -> int:
-    expected = render()
+    """比对**字节**而非文本。
+
+    `read_text()` 会做通用换行翻译（CRLF → LF），若用它比对，一份被 Windows 工具
+    写成 CRLF 的产物会被判为「与代码一致」——漂移被悄悄藏起来。本判据的全部价值
+    在于「不一样就说不一样」，故下沉到字节层。
+    """
+    expected = render().encode("utf-8")
 
     if not OUTPUT.is_file():
         print(f"[FAIL] 契约产物不存在：{OUTPUT}")
         print("       修复：uv run python scripts/gen_openapi.py")
         return 1
 
-    actual = OUTPUT.read_text(encoding="utf-8")
+    actual = OUTPUT.read_bytes()
     if actual == expected:
         print(f"[PASS] 契约产物与当前代码一致：{OUTPUT.relative_to(REPO_ROOT).as_posix()}")
         return 0
 
     print("[FAIL] 契约漂移：后端定义与入库的契约产物不一致")
     print("       这意味着契约变了但没有人重新生成产物——前端类型也会因此过时。")
+    if b"\r\n" in actual and b"\r\n" not in expected:
+        print()
+        print("       提示：产物含 CRLF 换行。写盘固定用 LF，出现 CRLF 说明该文件是被")
+        print("       别的工具写过的（旧版生成器、Windows 编辑器），应重新生成。")
     print()
-    print(_unified_diff(expected, actual), end="")
+    print(_unified_diff(expected.decode("utf-8"), actual.decode("utf-8")), end="")
     print()
     print("       修复：uv run python scripts/gen_openapi.py（并同步前端类型）")
     return 1
@@ -148,8 +165,11 @@ def check() -> int:
 def generate() -> int:
     text = render()
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(text, encoding="utf-8")
-    print(f"[OK] 已写入 {OUTPUT.relative_to(REPO_ROOT).as_posix()}（{len(text)} 字节）")
+    OUTPUT.write_text(text, encoding="utf-8", newline=_NEWLINE)
+    print(
+        f"[OK] 已写入 {OUTPUT.relative_to(REPO_ROOT).as_posix()}"
+        f"（{len(text.encode('utf-8'))} 字节 / {len(text)} 字符）"
+    )
     return 0
 
 
