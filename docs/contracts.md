@@ -199,7 +199,7 @@ Phase 2 取**像素中心**，故外环是**内接**多边形：`n × n` 实心�
 
 ### 9.3 成功响应 schema —— `DetectionResponse`
 
-逐字段（字段名与 `schemas/detection.py` 一字不差）：
+逐字段（共 **12** 个，字段名与 `schemas/detection.py` 一字不差）：
 
 | 字段名 | 类型 | 含义 |
 |---|---|---|
@@ -215,7 +215,8 @@ Phase 2 取**像素中心**，故外环是**内接**多边形：`n × n` 实心�
 | `image_after_url` | `str \| None` | 后一期影像预览图 URL |
 | `image_diff_url` | `str \| None` | 变化叠加预览图 URL |
 | `image_corners` | `list[list[float]] \| None` | 影像四角经纬度，顺序为左上、右上、右下、左下，用于地图定位 |
-| `status` | `str`（默认 `"success"`） | 保留字段，恒为 `success` |
+
+`status` 字段已于 `v0.5.0` 移除（原为第 13 个字段）。它恒为 `"success"`，即不携带任何信息——错误响应走 HTTP 状态码与 `ErrorResponse`——保留它只会让消费方误以为存在多种成功状态。
 
 ### 9.4 错误响应 schema —— `ErrorResponse`
 
@@ -304,6 +305,16 @@ HTTP 层不得漂移的基线数值（出处：真实夹具 `before.tif` / `afte
 * **不需要**修改 `pipeline/change_detection.py`：编排层在运行期不 import `detectors/` 与 `postprocess/` 的具体名字，`detector` / `postprocessor` 为必填注入参数，类型标注仅在 `TYPE_CHECKING` 下。
 * 判据（`test_architecture.py` 守护，阶段出口门 G3.4）：新增算法后 `pipeline/change_detection.py` 文件哈希不变。
 
+### 9.12 契约产物与漂移检测
+
+* **机器可读形态**：`docs/api/openapi.json`（OpenAPI `3.1.0`），由 `scripts/gen_openapi.py` 从 `create_app()` 生成，**冻结入库**。生成使用桩算法与桩后处理器（`build_context` 的显式注入口），不触及 `_spatial`，故**无需 GDAL 环境即可复现**。
+* 该文件的 `info.version` 取自 `rschange.__version__`，后者取自 `backend/pyproject.toml`。版本号一致性由 `scripts/verify_version.py` 第 5 项守护。
+* **前端类型**：`frontend/src/api/generated/schema.ts` 由该文件经 `scripts/gen-api-types.ps1` / `.sh`（`openapi-typescript`）生成，**入库**；`frontend/src/api/types.ts` 只是生成 schema 的转发别名，不含手写字段。原手写类型 `frontend/src/types/detection.ts` 已删除。
+* **漂移检测**（阶段出口门 G5.2 的载体）：
+  * `uv run python scripts/gen_openapi.py --check` —— 重新生成并与入库文件逐字节比对，不一致即退出码 `1`。
+  * `tests/contract/` 内的用例承担同一判据，另加「三方字段一致性」（pydantic 模型字段 == OpenAPI schema 属性 == 前端生成 schema 字段名）。
+* **反向验证**：故意改动后端响应字段而**不**重新生成契约产物时，上述门禁**必须**变红。不红即说明契约未真正生效，判不通过。
+
 ## 10. 变更记录
 
 > 本节在 `v0.3.0` 之前编号为 **§9**。按旧编号引用本节的报告（例如 `docs/verification/phase-2.1.md` 的「记入 `docs/contracts.md` §9」）指向本节。同一版本内新增的 HTTP 契约占用 §9，故本节顺延。
@@ -313,3 +324,4 @@ HTTP 层不得漂移的基线数值（出处：真实夹具 `before.tif` / `afte
 | `v0.2.0` | 2026-09-19 | 首次冻结。含对掩膜参数禁止隐式转换（`nb::noconvert`）与 `mask_to_geojson` 拒绝退化 3D 的约定 |
 | `v0.2.1` | 2026-09-23 | 几何基准由像素中心改为**像素角点**（沿像素边界追踪），几何面积与 `area_m2` 一致（§5.1）；默认简化容差 `2.0` → `0.0`，非正即不简化；退化剔除只剩「成员像素少于 3 个」，一像素宽结构不再是退化几何（`multi_region_mask` 的 Feature 数 5 → 6）；`gdal_registration_count()` 收归内部头，不再进入 DLL 导出表；配置模板示例值与 `default.toml`、CMake 预设对齐 |
 | `v0.3.0` | 2026-09-23 | HTTP 接口契约首次冻结（§9）；D1 修复：CORS 通配符 `"*"` 与凭据并存使白名单失效，改为逐列来源 + `allow_credentials=False` 并在配置期拒绝 `"*"`；上传体积上限由 nginx 层隐式 1 MB 改为应用层显式可配（`runtime.max_upload_mb`，默认 500 MB，边收边计、超限即删半成品）；`GET /api/image/{filename}` 目录穿越防护（纯文件名 + resolve 复核两道）；异常不再外泄（领域异常→脱敏 `public_message`，未预期异常 500 固定串「内部错误」）；新增 `backend/src/rschange/tests/` pytest 套件承担 HTTP 契约与分层结构判据 |
+| `v0.5.0` | 2026-10-02 | **契约收缩**：移除 `DetectionResponse.status`，成功响应字段 13 → 12（该字段恒为 `"success"`，不携带信息，错误一律走状态码与 `ErrorResponse`）；**版本号收敛**为 `backend/pyproject.toml` 单一真相源，`rschange.__version__` 改读发行版元数据（原字面量停在 `0.3.0`，与仓库实际版本漂移且会冻入契约产物），新增 `scripts/verify_version.py` 守护；**契约产物入库**：`docs/api/openapi.json` 与 `frontend/src/api/generated/schema.ts`（§9.12），前端手写类型删除，改由 OpenAPI 生成。注：`v0.4.0`（Phase 4 前端工程化）未改动本契约。 |

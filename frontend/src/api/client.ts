@@ -92,14 +92,14 @@ function parseErrorPayload(raw: unknown): ApiErrorPayload | null {
 /**
  * 判断一个 `unknown` 是否满足 `DetectionResponse` 的**关键**字段约束。
  *
- * 只校验数值字段与 `status`：URL 与 `geojson` 允许为 `null`，`image_corners`
- * 结构较深，交由消费方按需判空。目的不是做完整运行时校验（那属于 T4.3 之后的
- * 话题），而是拦住「后端返回了一个形状完全不对的东西」这种情形。
+ * 只校验数值字段与 `detector`：URL 与 `geojson` 允许为 `null`，`image_corners`
+ * 结构较深，交由消费方按需判空。目的不是做完整运行时校验，而是拦住
+ * 「后端返回了一个形状完全不对的东西」这种情形。
  */
 function isDetectionResponse(raw: unknown): raw is DetectionResponse {
   if (!isRecord(raw)) return false
 
-  const { change_pixels, total_pixels, change_rate, threshold, detector, pixel_area_m2, changed_area_m2, status } =
+  const { change_pixels, total_pixels, change_rate, threshold, detector, pixel_area_m2, changed_area_m2 } =
     raw
 
   return (
@@ -109,8 +109,7 @@ function isDetectionResponse(raw: unknown): raw is DetectionResponse {
     typeof threshold === 'number' &&
     typeof detector === 'string' &&
     typeof pixel_area_m2 === 'number' &&
-    typeof changed_area_m2 === 'number' &&
-    typeof status === 'string'
+    typeof changed_area_m2 === 'number'
   )
 }
 

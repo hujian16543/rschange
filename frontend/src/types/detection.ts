@@ -16,11 +16,14 @@
 export type LonLat = [number, number]
 
 /**
- * `POST /api/detect` 的成功响应（§9.3，共 13 个字段）。
+ * `POST /api/detect` 的成功响应（§9.3，共 12 个字段）。
  *
  * 与旧前端的差异：新增 `detector` / `pixel_area_m2` / `changed_area_m2`
  * 三个字段。前者用于结果追溯（可插拔检测器下，必须知道这份结果是哪个算法
  * 算出来的），后两者给出以平方米计的真实面积。
+ *
+ * `status` 字段已于 `v0.5.0` 移除（原为第 13 个字段）：它恒为 `"success"`，
+ * 不携带任何信息。
  */
 export interface DetectionResponse {
   /** 变化像元数（后处理后） */
@@ -47,8 +50,6 @@ export interface DetectionResponse {
   image_diff_url: string | null
   /** 影像四角经纬度，顺序为**左上、右上、右下、左下**，用于地图定位 */
   image_corners: LonLat[] | null
-  /** 保留字段，恒为 `"success"` */
-  status: string
 }
 
 /**
