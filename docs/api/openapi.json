@@ -1,0 +1,411 @@
+{
+  "components": {
+    "schemas": {
+      "Body_detect_api_detect_post": {
+        "properties": {
+          "after": {
+            "contentMediaType": "application/octet-stream",
+            "description": "后一期影像（.tif / .tiff / .png）",
+            "title": "After",
+            "type": "string"
+          },
+          "before": {
+            "contentMediaType": "application/octet-stream",
+            "description": "前一期影像（.tif / .tiff / .png）",
+            "title": "Before",
+            "type": "string"
+          }
+        },
+        "required": [
+          "before",
+          "after"
+        ],
+        "title": "Body_detect_api_detect_post",
+        "type": "object"
+      },
+      "DetectionResponse": {
+        "description": "一次变化检测的结果。",
+        "example": {
+          "change_pixels": 7209,
+          "change_rate": 0.1100006103515625,
+          "changed_area_m2": 720900.0,
+          "detector": "cva",
+          "geojson": "{\"type\": \"FeatureCollection\", \"features\": [...]}",
+          "image_after_url": "/api/image/8f3c1d9e_after.png",
+          "image_before_url": "/api/image/8f3c1d9e_before.png",
+          "image_corners": [
+            [
+              117.0,
+              36.144718
+            ],
+            [
+              117.028456,
+              36.144715
+            ],
+            [
+              117.028448,
+              36.121634
+            ],
+            [
+              117.0,
+              36.121638
+            ]
+          ],
+          "image_diff_url": "/api/image/8f3c1d9e_diff.png",
+          "pixel_area_m2": 100.0,
+          "threshold": 5.916767423962816,
+          "total_pixels": 65536
+        },
+        "properties": {
+          "change_pixels": {
+            "description": "变化像元数（后处理后）",
+            "minimum": 0.0,
+            "title": "Change Pixels",
+            "type": "integer"
+          },
+          "change_rate": {
+            "description": "变化像元占比，取值 [0, 1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Change Rate",
+            "type": "number"
+          },
+          "changed_area_m2": {
+            "description": "真实变化面积（平方米）= change_pixels × pixel_area_m2",
+            "minimum": 0.0,
+            "title": "Changed Area M2",
+            "type": "number"
+          },
+          "detector": {
+            "description": "实际使用的检测算法名，用于结果追溯",
+            "title": "Detector",
+            "type": "string"
+          },
+          "geojson": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "变化区域的 GeoJSON FeatureCollection（坐标已为 WGS84 经纬度）",
+            "title": "Geojson"
+          },
+          "image_after_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "后一期影像预览图 URL",
+            "title": "Image After Url"
+          },
+          "image_before_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "前一期影像预览图 URL",
+            "title": "Image Before Url"
+          },
+          "image_corners": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "影像四角经纬度，顺序为左上、右上、右下、左下，用于地图定位",
+            "title": "Image Corners"
+          },
+          "image_diff_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "变化叠加预览图 URL",
+            "title": "Image Diff Url"
+          },
+          "pixel_area_m2": {
+            "description": "单像元面积（平方米）",
+            "exclusiveMinimum": 0.0,
+            "title": "Pixel Area M2",
+            "type": "number"
+          },
+          "threshold": {
+            "description": "检测算法使用的判定阈值",
+            "title": "Threshold",
+            "type": "number"
+          },
+          "total_pixels": {
+            "description": "影像总像元数",
+            "exclusiveMinimum": 0.0,
+            "title": "Total Pixels",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "change_pixels",
+          "total_pixels",
+          "change_rate",
+          "threshold",
+          "detector",
+          "pixel_area_m2",
+          "changed_area_m2"
+        ],
+        "title": "DetectionResponse",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "错误响应体。\n\n与 `rschange.errors.RsChangeError.to_payload()` 的输出结构一致：`detail` 为\n**脱敏后**的描述，`code` 为机器可读错误码（供前端分支，不随文案变化）。\n\n本模型只用于 OpenAPI 文档，不参与序列化——异常响应由 `api/errors.py` 的\n全局处理器直接产出 `JSONResponse`，不经过 pydantic 校验。",
+        "example": {
+          "code": "input_validation_error",
+          "detail": "两期影像的尺寸或波段数不一致"
+        },
+        "properties": {
+          "code": {
+            "description": "机器可读错误码，见 docs/contracts.md",
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "description": "脱敏后的错误描述",
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "code"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "基于 CVA 的两期影像变化检测服务。检测算法可插拔，引擎为 C++ 扩展 `_spatial`。",
+    "title": "遥感变化检测平台",
+    "version": "0.5.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Root  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "服务信息",
+        "tags": [
+          "Meta"
+        ]
+      }
+    },
+    "/api/detect": {
+      "post": {
+        "description": "接收两期影像，执行变化检测并返回统计量、GeoJSON 与三张预览图。",
+        "operationId": "detect_api_detect_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_detect_api_detect_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "输入影像不满足要求"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "上传文件过大"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "内部错误"
+          }
+        },
+        "summary": "执行两期影像的变化检测",
+        "tags": [
+          "Detection"
+        ]
+      }
+    },
+    "/api/image/{filename}": {
+      "get": {
+        "description": "返回 `outputs/` 或 `uploads/` 下的产物文件。\n\n文件名按「纯文件名」判定，故任何带路径分隔符的请求都直接 404——包括旧实现\n会被读到的绝对路径。",
+        "operationId": "serve_image_api_image__filename__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "文件不存在"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "提供预览图",
+        "tags": [
+          "Detection"
+        ]
+      }
+    }
+  }
+}

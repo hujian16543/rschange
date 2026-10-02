@@ -46,6 +46,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Final
 
+import rschange
 from engine_env import REPO_ROOT
 from verify_config import Check, pad
 
@@ -92,8 +93,6 @@ def read_package_json_version(path: Path) -> str:
 
 def read_runtime_version() -> str:
     """读 `rschange.__version__`（取自已安装发行版的元数据）。"""
-    import rschange  # noqa: PLC0415 —— 仅在需要时导入，避免无谓的包加载
-
     return rschange.__version__
 
 
@@ -130,9 +129,7 @@ def collect_checks() -> list[Check]:
             actual = read_package_json_version(path)
         else:
             actual = read_toml_version(path, workspace_root=True)
-        checks.append(
-            Check(group, f"{label} version == 真相源", truth, actual, actual == truth)
-        )
+        checks.append(Check(group, f"{label} version == 真相源", truth, actual, actual == truth))
 
     # 4 —— 版本号本身可解析
     checks.append(
@@ -185,7 +182,14 @@ def main() -> int:
 
     checks = collect_checks()
 
-    print(pad("组", 5) + pad("判定项", 46) + pad("期望", 18) + pad("实际", 18) + pad("结果", 7) + "备注")
+    print(
+        pad("组", 5)
+        + pad("判定项", 46)
+        + pad("期望", 18)
+        + pad("实际", 18)
+        + pad("结果", 7)
+        + "备注"
+    )
     print("-" * 112)
 
     for check in checks:
@@ -203,7 +207,9 @@ def main() -> int:
 
     active = [check for check in checks if not check.skipped]
     failed = [check for check in active if not check.passed]
-    print(f"判定项 {len(active)} 项（跳过 {len(checks) - len(active)} 项），不通过 {len(failed)} 项")
+    print(
+        f"判定项 {len(active)} 项（跳过 {len(checks) - len(active)} 项），不通过 {len(failed)} 项"
+    )
 
     if arguments.verbose:
         print(f"\n仓库根：{REPO_ROOT}")
