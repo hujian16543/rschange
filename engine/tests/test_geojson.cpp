@@ -108,7 +108,8 @@ bool area_equals(double actual, double expected) {
 
 }  // namespace
 
-TEST_CASE("每个 Region 恰好一个 Feature（D-3）", "[geojson]") {
+// 每个 Region 恰好一个 Feature（D-3）
+TEST_CASE("geojson: exactly one Feature per Region (D-3)", "[geojson]") {
     const std::vector<spatial::Region> regions = {make_region(1, make_block(10, 20, 3, 3))};
     const Json collection = parse(spatial::regions_to_geojson(regions, kGeo));
 
@@ -123,7 +124,8 @@ TEST_CASE("每个 Region 恰好一个 Feature（D-3）", "[geojson]") {
     CHECK(feature.at("properties").at("area_m2").get<double>() == 9 * kPixelAreaM2);
 }
 
-TEST_CASE("多个 Region 时属性不重复计入", "[geojson]") {
+// 多个 Region 时属性不重复计入
+TEST_CASE("geojson: properties are not double counted across Regions", "[geojson]") {
     const std::vector<spatial::Region> regions = {
         make_region(1, make_block(10, 20, 3, 3)),
         make_region(2, make_block(40, 60, 4, 5)),
@@ -134,7 +136,8 @@ TEST_CASE("多个 Region 时属性不重复计入", "[geojson]") {
     CHECK(area_sum(collection) == (9.0 + 20.0) * kPixelAreaM2);
 }
 
-TEST_CASE("带洞 Region 仍是单 Feature，洞作为内环", "[geojson]") {
+// 带洞 Region 仍是单 Feature，洞作为内环
+TEST_CASE("geojson: a holed Region stays one Feature with the hole as an inner ring", "[geojson]") {
     const std::vector<spatial::Region> regions = {
         make_region(1, make_block_with_hole(0, 0, 5, 5, 2, 2)),
     };
@@ -154,7 +157,8 @@ TEST_CASE("带洞 Region 仍是单 Feature，洞作为内环", "[geojson]") {
                                        .get<double>());
 }
 
-TEST_CASE("环按 Polygon 约定闭合", "[geojson]") {
+// 环按 Polygon 约定闭合
+TEST_CASE("geojson: rings are closed per the Polygon convention", "[geojson]") {
     const std::vector<spatial::Region> regions = {
         make_region(1, make_block_with_hole(0, 0, 5, 5, 2, 2)),
     };
@@ -167,7 +171,8 @@ TEST_CASE("环按 Polygon 约定闭合", "[geojson]") {
     }
 }
 
-TEST_CASE("像素坐标换算为经纬度", "[geojson]") {
+// 像素坐标换算为经纬度
+TEST_CASE("geojson: pixel coordinates are converted to geographic coordinates", "[geojson]") {
     const std::vector<spatial::Region> regions = {make_region(1, make_block(10, 20, 3, 3))};
     const Json collection = parse(spatial::regions_to_geojson(regions, kGeo));
 
@@ -208,7 +213,8 @@ TEST_CASE("像素坐标换算为经纬度", "[geojson]") {
     CHECK(area_equals(ring_area(ring), 9 * kPixelAreaM2));
 }
 
-TEST_CASE("退化轮廓不产出 Feature（D-7）", "[geojson]") {
+// 退化轮廓不产出 Feature（D-7）
+TEST_CASE("geojson: degenerate contours produce no Feature (D-7)", "[geojson]") {
     SECTION("成员不足 3 个像素") {
         const std::vector<spatial::Region> regions = {
             make_region(1, {Coord{4, 4}, Coord{4, 5}}),
@@ -245,7 +251,8 @@ TEST_CASE("退化轮廓不产出 Feature（D-7）", "[geojson]") {
     }
 }
 
-TEST_CASE("几何面积精确等于 area_m2（Phase 2.1 的几何基准）", "[geojson]") {
+// 几何面积精确等于 area_m2（Phase 2.1 的几何基准）
+TEST_CASE("geojson: geometric area equals area_m2 exactly (Phase 2.1 invariant)", "[geojson]") {
     // Phase 2 取像素中心，外环是内接多边形，几何面积恒小于 area_m2（实测基线
     // −2.93 %、多区域 −17.63 %、最小区域 −31.4 %）。改在像素边界取样后两者
     // 相等：环围出的多边形恰好等于成员像素的并集。
@@ -291,7 +298,8 @@ TEST_CASE("几何面积精确等于 area_m2（Phase 2.1 的几何基准）", "[g
     }
 }
 
-TEST_CASE("端到端：掩膜经连通域与边界追踪后导出", "[geojson]") {
+// 端到端：掩膜经连通域与边界追踪后导出
+TEST_CASE("geojson: end to end, mask to regions to traced rings to GeoJSON", "[geojson]") {
     const int width = 32;
     const int height = 32;
     std::vector<std::uint8_t> mask(static_cast<std::size_t>(width) * height, 0);

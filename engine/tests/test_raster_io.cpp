@@ -41,7 +41,8 @@ SpatialReference fixture_reference() {
 
 }  // namespace
 
-TEST_CASE("GDAL 全驱动只注册一次（D-4）", "[raster]") {
+// GDAL 全驱动只注册一次（D-4）
+TEST_CASE("raster: GDALAllRegister runs exactly once (D-4)", "[raster]") {
     spatial::ensure_gdal_initialized();
     CHECK(spatial::internal::gdal_registration_count() == 1);
 
@@ -56,7 +57,8 @@ TEST_CASE("GDAL 全驱动只注册一次（D-4）", "[raster]") {
     CHECK(spatial::internal::gdal_registration_count() == 1);
 }
 
-TEST_CASE("read_raster 读出夹具元数据", "[raster]") {
+// read_raster 读出夹具元数据
+TEST_CASE("raster: read_raster reads fixture metadata", "[raster]") {
     const auto raster = spatial::read_raster(fixture::path("before.tif").string());
 
     CHECK(raster.width == kFixtureWidth);
@@ -73,12 +75,14 @@ TEST_CASE("read_raster 读出夹具元数据", "[raster]") {
     CHECK(raster.projection.find("UTM zone 50N") != std::string::npos);
 }
 
-TEST_CASE("read_raster 对不存在的文件抛 runtime_error", "[raster]") {
+// read_raster 对不存在的文件抛 runtime_error
+TEST_CASE("raster: read_raster throws on a missing file", "[raster]") {
     const auto missing = fixture::path("no_such_raster.tif").string();
     CHECK_THROWS_AS(spatial::read_raster(missing), std::runtime_error);
 }
 
-TEST_CASE("非方形多波段往返一致", "[raster]") {
+// 非方形多波段往返一致
+TEST_CASE("raster: non-square multi-band round-trip is exact", "[raster]") {
     const SpatialReference reference = fixture_reference();
     const double* geo = reference.geo.data();
 
@@ -115,7 +119,8 @@ TEST_CASE("非方形多波段往返一致", "[raster]") {
     std::filesystem::remove(target);
 }
 
-TEST_CASE("非方形单波段往返保留 H 与 W（D-1 的引擎侧对应）", "[raster]") {
+// 非方形单波段往返保留 H 与 W（D-1 的引擎侧对应）
+TEST_CASE("raster: non-square single-band round-trip keeps H and W (engine side of D-1)", "[raster]") {
     const SpatialReference reference = fixture_reference();
     const double* geo = reference.geo.data();
 

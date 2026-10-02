@@ -42,14 +42,16 @@ int min_row_of(const spatial::Region& region) {
 
 }  // namespace
 
-TEST_CASE("非法输入返回空列表", "[labeling]") {
+// 非法输入返回空列表
+TEST_CASE("labeling: invalid input yields an empty region list", "[labeling]") {
     const std::vector<std::uint8_t> empty;
     CHECK(spatial::extract_regions(nullptr, 8, 8, kGeo).empty());
     CHECK(spatial::extract_regions(empty.data(), 0, 8, kGeo).empty());
     CHECK(spatial::extract_regions(empty.data(), 8, 0, kGeo).empty());
 }
 
-TEST_CASE("单个连通域的像素数与面积", "[labeling]") {
+// 单个连通域的像素数与面积
+TEST_CASE("labeling: pixel count and area of a single region", "[labeling]") {
     const int width = 16;
     const int height = 16;
     auto mask = make_mask(width, height);
@@ -65,7 +67,8 @@ TEST_CASE("单个连通域的像素数与面积", "[labeling]") {
     CHECK(region.area_m2 == 9 * kPixelAreaM2);
 }
 
-TEST_CASE("4 邻域连通：对角相邻属两个区域", "[labeling]") {
+// 4 邻域连通：对角相邻属两个区域
+TEST_CASE("labeling: diagonal neighbours are two regions under 4-connectivity", "[labeling]") {
     const int width = 8;
     const int height = 8;
     auto mask = make_mask(width, height);
@@ -78,7 +81,8 @@ TEST_CASE("4 邻域连通：对角相邻属两个区域", "[labeling]") {
     CHECK(regions[1].pixel_count == 1);
 }
 
-TEST_CASE("标签按 raster-scan 首次出现顺序分配（D-6）", "[labeling]") {
+// 标签按 raster-scan 首次出现顺序分配（D-6）
+TEST_CASE("labeling: labels follow raster-scan first-appearance order (D-6)", "[labeling]") {
     const int width = 64;
     const int height = 64;
 
@@ -108,7 +112,8 @@ TEST_CASE("标签按 raster-scan 首次出现顺序分配（D-6）", "[labeling]
     }
 }
 
-TEST_CASE("区域内的像素按 raster-scan 顺序排列", "[labeling]") {
+// 区域内的像素按 raster-scan 顺序排列
+TEST_CASE("labeling: pixels inside a region follow raster-scan order", "[labeling]") {
     const int width = 32;
     const int height = 32;
     auto mask = make_mask(width, height);
@@ -126,7 +131,8 @@ TEST_CASE("区域内的像素按 raster-scan 顺序排列", "[labeling]") {
     }
 }
 
-TEST_CASE("标签连续编号且像素并集等于掩膜非零集", "[labeling]") {
+// 标签连续编号且像素并集等于掩膜非零集
+TEST_CASE("labeling: labels are contiguous and their union equals the mask", "[labeling]") {
     const int width = 24;
     const int height = 24;
     auto mask = make_mask(width, height);
