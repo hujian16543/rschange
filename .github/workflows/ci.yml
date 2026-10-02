@@ -22,6 +22,25 @@
 # 若将来改回在 MSYS2 shell 内执行 CMake，必须在脚本里显式设
 # `MSYS2_ARG_CONV_EXCL="*"`。
 #
+# MSYS2 安装位置（防复发，勿删）
+# ----------------------------
+# setup-msys2 在 release 模式（默认值）下**不**装到 `C:\msys64`，而装到
+# `$RUNNER_TEMP/msys64`；GitHub 托管 runner 上即 `D:\a\_temp\msys64`。依据是
+# 该动作源码 main.js：
+#
+#     let dest = (input.location !== null) ? input.location : tmp_dir;
+#     msysRootDir = path.join(dest, 'msys64');
+#
+# 因此**禁止**在任何步骤里写死 `C:/msys64/mingw64`。此前正是这样写死的，症状
+# 极具误导性：pacman 阶段一切正常（gcc/gdal 都如实装上、日志无一处报错），
+# 直到 CMake 配置阶段才报
+#
+#     The CMAKE_CXX_COMPILER: C:/msys64/mingw64/bin/g++.exe
+#     is not a full path to an existing compiler tool.
+#
+# 唯一真相源是动作输出 `steps.msys2.outputs.msys2-location`；由「解析 MinGW 根
+# 目录」步骤归一化并校验后写入环境变量 MINGW64_ROOT，供后续步骤引用。
+#
 # 三段门禁的定位
 # --------------
 # 1. C++ 单测（CTest）与 Python 测试（pytest）——功能正确性
@@ -106,9 +125,15 @@ jobs:
       # 同类问题，见 config/local.example.toml 关于 conda 的说明）。
       - name: 安装 MinGW 工具链与 GDAL（Windows）
         if: runner.os == 'Windows'
+        id: msys2
         uses: msys2/setup-msys2@v2
         with:
+          # MINGW64（MSVCRT）而非 UCRT64：本项目的扩展 ABI 标签为
+          # mingw_x86_64_msvcrt_gnu，由 verify_bindings.py 断言，与本机开发环境
+          # 必须同源。UCRT64 会改变运行时依赖，不属本阶段可擅自变更的范围。
+          # 该环境已被上游标记为 deprecated，故显式确认以消除告警噪声。
           msystem: MINGW64
+          suppress-deprecation-warnings: msystem-mingw64
           update: false
           install: >-
             mingw-w64-x86_64-gcc
@@ -116,10 +141,30 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pkgconf
 
+      # 见文首「MSYS2 安装位置」。此步骤把动作输出解析为 mingw64 根目录，并在
+      # 继续之前确认 g++.exe 真实存在——失败点前移到这里，报错能直接给出实际
+      # 目录内容，而不是留到 CMake 阶段变成一句「不是有效编译器路径」。
+      - name: 解析 MinGW 根目录（Windows）
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='${{ steps.msys2.outputs.msys2-location }}'
+          root="${root//\\//}"   # D:\a\_temp\msys64 → D:/a/_temp/msys64
+          mingw="$root/mingw64"
+          if [ ! -f "$mingw/bin/g++.exe" ]; then
+            echo "::error::未在 $mingw/bin 找到 g++.exe；MSYS2 根目录解析结果：$root"
+            ls -la "$root" || true
+            ls -la "$mingw/bin" 2>/dev/null | head -n 40 || true
+            exit 1
+          fi
+          echo "MinGW 根目录：$mingw"
+          echo "MINGW64_ROOT=$mingw" >> "$GITHUB_ENV"
+
       - name: 把 MSYS2 加入 PATH（Windows）
         if: runner.os == 'Windows'
         shell: bash
-        run: echo "C:/msys64/mingw64/bin" >> "$GITHUB_PATH"
+        run: echo "$MINGW64_ROOT/bin" >> "$GITHUB_PATH"
 
       # ------------------------------------------------------- 环境变量注入
       # 引擎定位与运行期依赖全部经 RSCHANGE_* 环境变量给出，不生成
@@ -131,7 +176,9 @@ jobs:
           set -euo pipefail
           if [ "${{ runner.os }}" = "Windows" ]; then
             venv_python="$GITHUB_WORKSPACE/.venv/Scripts/python.exe"
-            msys_root="C:/msys64/mingw64"
+            # 由「解析 MinGW 根目录」写入 GITHUB_ENV；禁止改写为硬编码路径，
+            # 理由见文首「MSYS2 安装位置」。
+            msys_root="$MINGW64_ROOT"
             echo "SPATIAL_MINGW_ROOT=$msys_root" >> "$GITHUB_ENV"
             echo "SPATIAL_GDAL_ROOT=$msys_root" >> "$GITHUB_ENV"
             echo "RSCHANGE_ENGINE__RUNTIME_DLL_DIR=$msys_root/bin" >> "$GITHUB_ENV"
@@ -169,6 +216,10 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: 构建引擎
+        # working-directory 不可省：--preset 需要从 engine/ 目录读取 presets 文件，
+        # 否则 CMake 在仓库根找不到 CMakePresets.json，报
+        # "Could not read presets from <repo root>: File not found"。
+        working-directory: engine
         run: cmake --build --preset ${{ matrix.preset }}
 
       - name: C++ 单元测试
