@@ -25,7 +25,7 @@
  * 夹具，避免多份夹具随时间漂移。
  */
 
-import type { DetectionResponse } from '@/types/detection'
+import type { DetectionResponse } from '@/api/types'
 
 /** 契约锚点：变化像元数。 */
 export const EXAMPLE_CHANGE_PIXELS = 7209
@@ -54,7 +54,7 @@ export const EXAMPLE_THRESHOLD_DISPLAY = '5.9168'
 /** `change_rate` 经 `formatRate`（×100，2 位小数）后的展示串。 */
 export const EXAMPLE_RATE_DISPLAY = '11.00%'
 
-/** 一份完整的成功响应，13 个字段一个不少。 */
+/** 一份完整的成功响应，12 个字段一个不少。 */
 export const EXAMPLE_RESPONSE: DetectionResponse = {
   change_pixels: EXAMPLE_CHANGE_PIXELS,
   total_pixels: 65536,
@@ -73,7 +73,6 @@ export const EXAMPLE_RESPONSE: DetectionResponse = {
     [117.028448, 36.121634],
     [117.0, 36.121638],
   ],
-  status: 'success',
 }
 
 /**

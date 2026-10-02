@@ -21,7 +21,7 @@ import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ResultPanel } from '@/features/detection/components/ResultPanel'
-import type { DetectionResponse } from '@/types/detection'
+import type { DetectionResponse } from '@/api/types'
 import {
   EXAMPLE_AREA_DISPLAY,
   EXAMPLE_CHANGE_PIXELS,

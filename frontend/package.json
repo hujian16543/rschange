@@ -1,7 +1,7 @@
 {
   "name": "rschange-frontend",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "format:check": "oxlint --format=github",
     "test": "vitest run",
     "check": "tsc -b --noEmit && oxlint && vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gen:types": "swagger-typescript-api generate -p ../docs/api/openapi.json -o src/api/generated --modular --no-client --type-only-imports --sort-types"
   },
   "dependencies": {
     "lucide-react": "^1.30.0",
@@ -29,6 +30,7 @@
     "@vitejs/plugin-react": "^6.0.0",
     "jsdom": "^26.0.0",
     "oxlint": "^1.75.0",
+    "swagger-typescript-api": "^13.13.0",
     "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",

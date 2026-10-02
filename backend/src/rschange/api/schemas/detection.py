@@ -14,8 +14,10 @@ Phase 5 由它生成前端的 TypeScript 类型。字段的增删都须走契约
 * 移除 `DetectionRequest`：旧的它声明 `before` / `after` 两个字符串路径，但 HTTP
   接口收的是 multipart 文件，该模型从未被任何路由使用。
 
-`status` 字段**保留**。它恒为 `"success"`（错误走 HTTP 状态码与 `ErrorResponse`），
-即不携带任何信息；删除它属契约收缩，不是缺陷修复，故留给契约冻结时裁定。
+`status` 字段已于 `v0.5.0` **移除**，响应字段由 13 个收缩为 12 个。它恒为
+`"success"`——错误一律走 HTTP 状态码与 `ErrorResponse`——因此不携带任何信息，
+只会让消费方误以为存在多种成功状态。该变更属契约收缩，已按 §8 流程记入
+`docs/contracts.md` §10。
 """
 
 from __future__ import annotations
@@ -45,7 +47,6 @@ _EXAMPLE: dict[str, Any] = {
         [117.028448, 36.121634],
         [117.0, 36.121638],
     ],
-    "status": "success",
 }
 
 
@@ -71,7 +72,6 @@ class DetectionResponse(BaseModel):
         default=None,
         description="影像四角经纬度，顺序为左上、右上、右下、左下，用于地图定位",
     )
-    status: str = Field(default="success", description="保留字段，恒为 success")
 
     model_config = {
         "json_schema_extra": {"example": _EXAMPLE},

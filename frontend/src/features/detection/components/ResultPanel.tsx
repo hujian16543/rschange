@@ -14,6 +14,7 @@
 import { useCallback, useMemo } from 'react'
 
 import { imageUrl } from '@/api/client'
+import type { DetectionResponse } from '@/api/types'
 import { Card, StatList, StatRow } from '@/components/ui'
 import {
   formatArea,
@@ -23,7 +24,6 @@ import {
   formatRate,
   formatThreshold,
 } from '@/features/detection/format'
-import type { DetectionResponse, LonLat } from '@/types/detection'
 
 export interface ResultPanelProps {
   /** 检测成功响应（§9.3）。 */
@@ -127,7 +127,13 @@ export function ResultPanel({ result }: ResultPanelProps) {
         </StatList>
       </Card>
 
-      <GeoJsonActions result={result} corners={result.image_corners} />
+      {/*
+        `?? null` 是必要的：生成类型里 `image_corners` 是**可选**字段（schema 带
+        默认值），故其类型是 `number[][] | null | undefined`，而 `GeoJsonActions`
+        只区分「有」与「无」。把 `undefined` 归一为 `null` 后，「字段缺失」与
+        「字段为空」在下游是同一种情形。
+      */}
+      <GeoJsonActions result={result} corners={result.image_corners ?? null} />
     </div>
   )
 }
@@ -197,8 +203,8 @@ function PreviewFigure({ caption, url, highlight }: PreviewFigureProps) {
 export interface GeoJsonActionsProps {
   /** 检测成功响应。 */
   result: DetectionResponse
-  /** 四角经纬度；用于展示成像范围。 */
-  corners: LonLat[] | null
+  /** 四角经纬度；用于展示成像范围。调用方已把「字段缺失」归一为 `null`。 */
+  corners: number[][] | null
 }
 
 /**
@@ -224,7 +230,13 @@ function GeoJsonActions({ result, corners }: GeoJsonActionsProps) {
     URL.revokeObjectURL(href)
   }, [result.geojson])
 
-  const hasGeoJson = result.geojson !== null && result.geojson !== ''
+  /**
+   * 三态判定：`geojson` 在生成类型里是可选字段，`undefined`（字段缺失）与
+   * `null`（后端明确返回空）都表示「没有矢量结果」，空串同理。不用 `!= null`
+   * 这类松散比较，是为了让判定条件在源码里完全显式。
+   */
+  const hasGeoJson =
+    result.geojson !== null && result.geojson !== undefined && result.geojson !== ''
 
   if (!hasGeoJson && corners === null) return null
 
@@ -254,7 +266,7 @@ function GeoJsonActions({ result, corners }: GeoJsonActionsProps) {
 
 export interface CornersTableProps {
   /** 四角经纬度，顺序为左上、右上、右下、左下。 */
-  corners: LonLat[]
+  corners: number[][]
 }
 
 /** 角点名称，与契约顺序（左上、右上、右下、左下）一一对应。 */
@@ -286,11 +298,14 @@ function CornersTable({ corners }: CornersTableProps) {
 /**
  * 经纬度展示。
  *
- * `LonLat` 是定长元组 `[lon, lat]`，解构即得 `number`——这正是 T4.1 把它
- * 声明为元组而非 `number[]` 的收益（见 `types/detection.ts` 注释），
- * 在 `noUncheckedIndexedAccess` 下也无需再判空。
+ * 入参是 `number[]` 而非定长元组：OpenAPI 表达不了 `list[list[float]]` 的定长性，
+ * 后端 schema 也只有这一种形态，因此 T5.2 接受了类型退化（见 `api/types.ts` 注释）。
+ * 代价在 `noUncheckedIndexedAccess` 下显现——解构出的 `lon` / `lat` 是
+ * `number | undefined`，必须判空。此处退化为占位符「—」，而不是用 `!` 断言把
+ * 一个畸形角点渲染成 `NaN.toFixed` 的结果。
  */
-function formatCoordinate(corner: LonLat): string {
+function formatCoordinate(corner: number[]): string {
   const [lon, lat] = corner
+  if (lon === undefined || lat === undefined) return '—'
   return `${lon.toFixed(5)}°, ${lat.toFixed(5)}°`
 }

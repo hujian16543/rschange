@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+import rschange
 from rschange.api.app import create_app
 from rschange.api.deps import RuntimeContext
 from rschange.api.routers.detection import _artifact_path
@@ -74,7 +75,14 @@ class TestAppFactory:
         assert {"detector", "pixel_area_m2", "changed_area_m2"} <= set(properties)
 
     def test_root_reports_version(self, client: TestClient) -> None:
-        assert client.get("/").json()["version"] == "0.3.0"
+        """`/` 上报的版本号必须等于包版本，**不写字面量**。
+
+        写死版本号会凭空造出第二个声明点：此处曾停在 `"0.3.0"` 而仓库已到
+        `v0.4.0`，且没有任何门禁会因此报错。断言「等于 `rschange.__version__`」
+        保住原意（端点确实上报了版本）并消除漂移；该值的单一真相源由
+        `scripts/verify_version.py` 守护。
+        """
+        assert client.get("/").json()["version"] == rschange.__version__
 
 
 # ------------------------------------------------------------------ CORS

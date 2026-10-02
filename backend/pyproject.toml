@@ -11,7 +11,10 @@
 
 [project]
 name = "rschange"
-version = "0.3.0"
+# 版本号的唯一真相源。rschange.__version__ 从发行版元数据读取本值；
+# frontend/package.json 与工作区根 pyproject.toml 由 scripts/verify_version.py
+# 守护为同号。改版本只改这一处。
+version = "0.5.0"
 description = "遥感变化检测平台后端：FastAPI + C++ 空间引擎（_spatial）"
 requires-python = ">=3.14,<3.15"
 authors = [{ name = "胡建" }]

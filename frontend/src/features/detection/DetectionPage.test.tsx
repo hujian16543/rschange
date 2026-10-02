@@ -17,7 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { detectChange } from '@/api/client'
 import { DetectionPage } from '@/features/detection/DetectionPage'
-import type { DetectionResponse } from '@/types/detection'
+import type { DetectionResponse } from '@/api/types'
 
 import { afterFile, beforeFile, EXAMPLE_RESPONSE } from '@/test/fixtures'
 
