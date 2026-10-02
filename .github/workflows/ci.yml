@@ -34,7 +34,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # 阶段分支与证据分支同样触发。理由有两条：
+    #   1. G6.1 的判据是「push 后 Actions 双平台全绿」，而阶段分支在合入 main
+    #      **之前**就必须是绿的——否则是红了才进 main，回退成本高。
+    #   2. GitHub 的 workflow_dispatch 只能触发默认分支上已注册的 workflow，
+    #      阶段分支若不在触发列表内，首次验证将无从发起。
+    branches: [main, "phase-*", "verify-*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
