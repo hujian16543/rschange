@@ -13,7 +13,7 @@
 import { useCallback, useRef, useState } from 'react'
 
 import { detectChange } from '@/api/client'
-import type { DetectionResponse } from '@/types/detection'
+import type { DetectionResponse } from '@/api/types'
 
 /** 状态机取值。 */
 export type DetectionStatus = 'idle' | 'loading' | 'success' | 'error'

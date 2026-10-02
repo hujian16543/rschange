@@ -30,7 +30,7 @@ import { ApiError, NetworkError } from '@/api/client'
 import { detectChange } from '@/api/client'
 import type { DetectionStatus } from '@/features/detection/hooks/useDetection'
 import { useDetection } from '@/features/detection/hooks/useDetection'
-import type { DetectionResponse } from '@/types/detection'
+import type { DetectionResponse } from '@/api/types'
 
 import { afterFile, beforeFile, EXAMPLE_RESPONSE } from '@/test/fixtures'
 

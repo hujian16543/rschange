@@ -25,7 +25,7 @@
  * 夹具，避免多份夹具随时间漂移。
  */
 
-import type { DetectionResponse } from '@/types/detection'
+import type { DetectionResponse } from '@/api/types'
 
 /** 契约锚点：变化像元数。 */
 export const EXAMPLE_CHANGE_PIXELS = 7209

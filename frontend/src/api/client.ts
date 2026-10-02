@@ -13,7 +13,7 @@
  *    才能给出可操作的提示。
  */
 
-import type { ApiErrorPayload, DetectionResponse } from '@/types/detection'
+import type { DetectionResponse, ErrorResponse } from '@/api/types'
 
 /** 业务路由前缀，与后端 `app.py` 的 `API_PREFIX` 一致（§9）。 */
 const API_BASE = '/api'
@@ -80,7 +80,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * 形状，这里返回 `null`，调用方走兜底分支，而不是把 `undefined` 当成 `string`
  * 用下去。
  */
-function parseErrorPayload(raw: unknown): ApiErrorPayload | null {
+function parseErrorPayload(raw: unknown): ErrorResponse | null {
   if (!isRecord(raw)) return null
 
   const { detail, code } = raw
@@ -139,7 +139,7 @@ export async function detectChange(
 
   if (!response.ok) {
     // 错误体的读取本身也可能失败（如响应被截断），失败时退回通用文案。
-    let payload: ApiErrorPayload | null = null
+    let payload: ErrorResponse | null = null
     try {
       payload = parseErrorPayload(await response.json())
     } catch {
@@ -162,7 +162,13 @@ export async function detectChange(
   return data
 }
 
-/** 由预览图 URL 构造可直接用于 `<img src>` 的地址。 */
-export function imageUrl(url: string | null): string | null {
-  return url === null || url === '' ? null : url
+/**
+ * 由预览图 URL 构造可直接用于 `<img src>` 的地址。
+ *
+ * 入参含 `undefined`：生成类型里 `image_*_url` 是**可选**字段（schema 给了默认值），
+ * 因此「字段缺失」与「字段为 null」都要归一到 `null`——否则 `<img src={undefined}>`
+ * 会被 React 渲染成空属性的破图，而 `<img src={null}>` 会省略该属性。
+ */
+export function imageUrl(url: string | null | undefined): string | null {
+  return url === null || url === undefined || url === '' ? null : url
 }
