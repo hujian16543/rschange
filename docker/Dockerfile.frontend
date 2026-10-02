@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+# ============================================================================
+# 前端镜像：React 构建 + nginx 托管
+#
+# 与旧实现的三处差异
+# ------------------
+# 1. `npm install` → `npm ci`：前者按 package.json 解析，可能悄悄改写
+#    node_modules 与锁文件不一致；后者严格按 package-lock.json 安装，可复现。
+# 2. 只复制 package*.json 后再装依赖，源码变更不触发重装（层缓存）。
+# 3. 构建上下文为**仓库根**，不复制 node_modules（由 .dockerignore 排除）。
+#
+# 版本说明
+# --------
+# node 主版本取 24，与 frontend/package.json 的 `@types/node` 主版本一致，
+# 并与 CI 的 setup-node 保持一致。三者漂移会让「本机类型检查过、镜像内构建
+# 失败」这类问题重新出现；scripts/verify_containers.py 把该一致性做成判据。
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# 阶段 1：构建静态资源
+# ---------------------------------------------------------------------------
+FROM node:24-alpine AS builder
+
+WORKDIR /app
+
+# 先装依赖：源码变更不影响这一层。
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# 阶段 2：nginx 托管
+# ---------------------------------------------------------------------------
+FROM nginx:1.27-alpine AS runtime
+
+# 覆盖默认站点配置（含 client_max_body_size，见 docker/nginx.conf 头部说明）。
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1

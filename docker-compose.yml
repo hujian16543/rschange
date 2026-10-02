@@ -1,0 +1,74 @@
+# ============================================================================
+# 全栈编排：nginx 前端 + uvicorn 后端
+#
+# 关于 `version:` 顶层字段
+# -----------------------
+# Compose V2 起该字段已废弃，写了会打印告警，故不写。项目名由 `name:` 给出，
+# 它同时决定命名卷的前缀。
+#
+# 关于端口取值
+# ------------
+# 前端默认映射到宿主 5173，与 config/default.toml 的
+# runtime.allowed_origins 默认值（http://localhost:5173）一致。改端口时二者
+# 必须同步，否则表现为「页面能打开但请求全被 CORS 拦下」——这类问题在浏览器
+# 控制台里只显示一句笼统的 CORS 报错，排查成本远高于在此写对。
+#
+# 由于前端经 nginx 代理 /api 到后端（同源），正常访问路径不涉及 CORS；
+# allowed_origins 的价值在于直连后端 8000 的开发场景与前端 dev server。
+#
+# 环境变量
+# --------
+# 全部可被宿主环境覆盖（${VAR:-默认值}），机器相关内容不进本文件。
+# ============================================================================
+name: rschange
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    image: rschange/backend:${RSCHANGE_TAG:-local}
+    environment:
+      # 上传上限。必须与 docker/nginx.conf 的 client_max_body_size 一致，
+      # 否则会出现「nginx 放行但后端拒绝」或反之的单侧生效。
+      RSCHANGE_RUNTIME__MAX_UPLOAD_MB: "${RSCHANGE_MAX_UPLOAD_MB:-500}"
+      RSCHANGE_RUNTIME__ALLOWED_ORIGINS: '["http://localhost:${RSCHANGE_FRONTEND_PORT:-5173}","http://127.0.0.1:${RSCHANGE_FRONTEND_PORT:-5173}"]'
+      RSCHANGE_LOGGING__LEVEL: "${RSCHANGE_LOG_LEVEL:-INFO}"
+      RSCHANGE_LOGGING__FORMAT: "${RSCHANGE_LOG_FORMAT:-json}"
+    ports:
+      - "${RSCHANGE_BACKEND_PORT:-8000}:8000"
+    volumes:
+      # 命名卷而非宿主目录绑定：Windows 宿主上的 bind mount 会让 POSIX 权限
+      # 语义失效，非 root 用户（镜像内 uid 10001）写入被拒。
+      - rschange-data:/app/data
+    healthcheck:
+      # 打根路由：它不触碰引擎与文件系统，故能区分「进程活着」与「依赖就绪」。
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    image: rschange/frontend:${RSCHANGE_TAG:-local}
+    ports:
+      - "${RSCHANGE_FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        # service_started 只保证容器起过，健康检查才保证后端真能应答。
+        # 用前者会在后端冷启动期间把 502 暴露给用户。
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  rschange-data:

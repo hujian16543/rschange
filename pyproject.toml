@@ -36,6 +36,10 @@ dev = [
     # 同步升 stubs，否则 `uv lock` 直接失败。该约束可接受：失败是显式的，
     # 而 Any 造成的类型黑洞是隐式的。
     "scipy-stubs>=1.18.1.1",
+    # scripts/verify_containers.py 解析 docker-compose.yml 用。显式声明而非
+    # 依赖传递引入：传递依赖一旦被上游移除，门禁脚本会以 ImportError 的形式
+    # 突然失效，且排查方向会被引向 compose 文件而不是依赖树。
+    "pyyaml>=6.0",
 ]
 
 [tool.uv]
