@@ -75,6 +75,27 @@ env:
   # 减少无关噪声输出；不改变任何构建语义。
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   UV_LINK_MODE: "copy"
+  # UTF-8 stdio（防复发，勿删）
+  # ------------------------
+  # 仓库的门禁脚本与 CLI 以中文输出（如 `[PASS] 契约产物与当前代码一致：…`）。
+  # Windows 上 Python 的 stdio 编码取自进程 locale：GitHub 托管 runner 为
+  # `en-US`、ANSI 代码页 1252，stdout 被重定向为管道时 `print()` 一遇中文即报
+  #
+  #     UnicodeEncodeError: 'charmap' codec can't encode characters
+  #
+  # 本机是中文 Windows（ACP=936），能表示中文，故此缺陷**只在 CI 上暴露**。
+  #
+  # 设 `PYTHONUTF8=1` 开启 PEP 540 UTF-8 模式：stdio 与
+  # `locale.getpreferredencoding(False)` 一并归一为 UTF-8。后者是必需的——
+  # `tests/contract/test_openapi_frozen.py` 以 `subprocess.run(text=True)` 读取
+  # 子进程输出，父进程若仍按 cp1252 解码 UTF-8 字节流，会以 `UnicodeDecodeError`
+  # 的形式二次失败。
+  #
+  # 这不只是规避：**门的判定结果不应取决于运行环境的 locale**。Linux 作业的
+  # locale 是 UTF-8、Windows 作业是 cp1252，两个平台本不可比；显式声明后两侧
+  # stdio 语义一致，G6.1 的「双平台全绿」才是同一判据。仓库的中文输出以「运行
+  # 环境提供 UTF-8 stdio」为前提，该前提属开发环境要求，须记入面向开发者的文档。
+  PYTHONUTF8: "1"
 
 jobs:
   verify:

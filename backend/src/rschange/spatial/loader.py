@@ -56,6 +56,32 @@ def _invalid_runtime_dir_error(dll_dir: str) -> ConfigError:
     )
 
 
+def _register_dll_directory(dll_dir: str) -> None:
+    """把一个目录注册进 Windows 的 DLL 搜索路径，并持有返回句柄。
+
+    为什么经 `getattr` 取而不是直接写 `os.add_dll_directory`
+    ------------------------------------------------------
+    该属性只存在于 **Windows** 的 typeshed 声明中。直接引用会让在 Linux 上执行
+    的 `mypy` 报 `attr-defined`（Module has no attribute），而本机开发环境是
+    Windows——所以这个缺陷**不会在开发者机器上暴露**，只有双平台 CI 的 Linux
+    作业能抓到。运行时分支是一条 `bool` 参数，`mypy` 无法据此做平台收窄；经
+    `getattr` 取值后类型为 `Any`，两侧平台都可通过检查，且不牺牲任何运行时语义。
+
+    取不到即报错，不静默跳过
+    ------------------------
+    `os.name == "nt"` 成立时该函数必定存在，取不到就是环境异常。静默跳过的症状
+    与「丢弃返回句柄」完全一样——**有时能导入、有时找不到 DLL**，取决于 GC 时机。
+    故此处显式抛出 `EngineLoadError`，让失败发生在加载点而不是加载之后。
+    """
+    add_dll_directory = getattr(os, "add_dll_directory", None)
+    if add_dll_directory is None:  # 仅在非 Windows 上可达
+        raise EngineLoadError(
+            f"os.add_dll_directory 不可用，无法注册引擎运行时目录：{dll_dir}",
+            public_message="空间引擎不可用：运行时目录注册失败",
+        )
+    _DLL_HANDLES.append(add_dll_directory(dll_dir))
+
+
 @functools.lru_cache(maxsize=1)
 def _load_cached(build_dir: str, dll_dir: str, windows: bool) -> Any:
     """加载并缓存扩展模块。
@@ -67,8 +93,8 @@ def _load_cached(build_dir: str, dll_dir: str, windows: bool) -> Any:
     异常**不**被缓存（`lru_cache` 仅缓存正常返回），因此修好配置后可重试。
     """
     if windows:
-        _DLL_HANDLES.append(os.add_dll_directory(dll_dir))
-        _DLL_HANDLES.append(os.add_dll_directory(build_dir))
+        _register_dll_directory(dll_dir)
+        _register_dll_directory(build_dir)
 
     if build_dir not in sys.path:
         sys.path.insert(0, build_dir)
