@@ -119,7 +119,8 @@ bool area_equals(double actual, double expected) {
 
 }  // namespace
 
-TEST_CASE("多区域夹具：每个区域按 raster-scan 首次出现位置编号", "[multi_region]") {
+// 多区域夹具：每个区域按 raster-scan 首次出现位置编号
+TEST_CASE("multi_region: labels follow raster-scan first appearance order", "[multi_region]") {
     const MultiRegion f = load_multi_region();
     REQUIRE(f.mask.size() == static_cast<std::size_t>(f.width) * f.height);
 
@@ -168,7 +169,8 @@ TEST_CASE("多区域夹具：每个区域按 raster-scan 首次出现位置编�
     CHECK(regions[2].pixels.front().col < regions[3].pixels.front().col);
 }
 
-TEST_CASE("多区域夹具：一个 Region 一个 Feature，几何面积与像素数一致", "[multi_region]") {
+// 多区域夹具：一个 Region 一个 Feature，几何面积与像素数一致
+TEST_CASE("multi_region: one Feature per Region, area matches pixel count", "[multi_region]") {
     const MultiRegion f = load_multi_region();
     const auto regions = spatial::extract_regions(f.mask.data(), f.width, f.height, f.geo);
 
@@ -213,7 +215,8 @@ TEST_CASE("多区域夹具：一个 Region 一个 Feature，几何面积与像�
     }
 }
 
-TEST_CASE("多区域夹具：带洞区域产出一个 Feature 与一条内环", "[multi_region]") {
+// 多区域夹具：带洞区域产出一个 Feature 与一条内环
+TEST_CASE("multi_region: holed region yields one Feature with one inner ring", "[multi_region]") {
     const MultiRegion f = load_multi_region();
     const auto regions = spatial::extract_regions(f.mask.data(), f.width, f.height, f.geo);
 
@@ -246,7 +249,8 @@ TEST_CASE("多区域夹具：带洞区域产出一个 Feature 与一条内环", 
     CHECK(matched_features == 1);
 }
 
-TEST_CASE("多区域夹具：非方形影像的行列不得互换", "[multi_region]") {
+// 多区域夹具：非方形影像的行列不得互换
+TEST_CASE("multi_region: non-square raster must not swap rows and columns", "[multi_region]") {
     const MultiRegion f = load_multi_region();
     const auto regions = spatial::extract_regions(f.mask.data(), f.width, f.height, f.geo);
     const Json collection = Json::parse(spatial::regions_to_geojson(regions, f.geo));
@@ -292,7 +296,8 @@ TEST_CASE("多区域夹具：非方形影像的行列不得互换", "[multi_regi
     }
 }
 
-TEST_CASE("多区域夹具：输出在重复调用间逐字节一致", "[multi_region]") {
+// 多区域夹具：输出在重复调用间逐字节一致
+TEST_CASE("multi_region: output is byte-identical across repeated calls", "[multi_region]") {
     const MultiRegion f = load_multi_region();
     const auto regions = spatial::extract_regions(f.mask.data(), f.width, f.height, f.geo);
     const std::string first = spatial::regions_to_geojson(regions, f.geo);

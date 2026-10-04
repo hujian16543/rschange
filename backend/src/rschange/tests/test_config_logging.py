@@ -38,9 +38,31 @@ class TestPrecedence:
         monkeypatch.delenv("RSCHANGE_POSTPROCESS__MIN_SIZE", raising=False)
         assert Settings().postprocess.min_size == 30
 
-    def test_relative_path_resolves_against_repo_root(self) -> None:
+    def test_relative_path_resolves_against_repo_root(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """相对路径一律相对仓库根解析。
+
+        断言**禁止**写死预设名。`build_dir` 的最终取值由优先级最高的来源决定：
+        `RSCHANGE_ENGINE__BUILD_DIR` > `local.toml` > `default.toml`。CI 的两个
+        平台分别注入 `dev-linux` 与 `dev-win`，此前把 `dev-win` 写进断言，于是
+        Linux 侧必红——而 Linux 只是忠实反映了注入值，产品行为并没有错。
+        这里显式注入一个相对值，判据收敛到规则本身：相对 -> 锚定 repo_root。
+        """
+        monkeypatch.setenv("RSCHANGE_ENGINE__BUILD_DIR", "./engine/build/some-preset")
         settings = Settings()
-        assert settings.build_dir == settings.repo_root / "engine" / "build" / "dev-win"
+        assert settings.build_dir == settings.repo_root / "engine" / "build" / "some-preset"
+
+    def test_effective_build_dir_is_anchored_at_repo_root(self) -> None:
+        """不多问取值来源，只问「实际生效的路径是否落在仓库根之下」。
+
+        这一条与上一条互补：上一条钉住规则的形状，这一条保证无论环境变量、
+        local.toml 还是 default.toml 胜出，结果都不会跑到仓库外。
+        """
+        settings = Settings()
+        assert settings.build_dir.is_relative_to(settings.repo_root)
+        assert settings.uploads_dir.is_relative_to(settings.repo_root)
+        assert settings.outputs_dir.is_relative_to(settings.repo_root)
 
     def test_data_dirs_are_derived_from_data_dir(self, settings: Settings) -> None:
         assert settings.uploads_dir == settings.data_dir / "uploads"

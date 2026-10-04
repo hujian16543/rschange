@@ -130,7 +130,8 @@ void check_ring_shape(const std::vector<Coord>& ring, int pixel_count, bool oute
 
 }  // namespace
 
-TEST_CASE("实心方块：一条闭合外环，无洞", "[contour]") {
+// 实心方块：一条闭合外环，无洞
+TEST_CASE("contour: solid square yields one closed outer ring and no holes", "[contour]") {
     const auto pixels = make_block(1, 1, 3, 3);
     const spatial::Boundary boundary = spatial::extract_boundary(pixels);
 
@@ -144,7 +145,8 @@ TEST_CASE("实心方块：一条闭合外环，无洞", "[contour]") {
     CHECK(as_index_set(boundary.outline) == expected);
 }
 
-TEST_CASE("十字形：凹角众多，仍只出一条闭合外环", "[contour]") {
+// 十字形：凹角众多，仍只出一条闭合外环
+TEST_CASE("contour: cross shape still yields one closed outer ring", "[contour]") {
     const auto pixels = make_plus();
     const spatial::Boundary boundary = spatial::extract_boundary(pixels);
 
@@ -163,7 +165,8 @@ TEST_CASE("十字形：凹角众多，仍只出一条闭合外环", "[contour]")
     CHECK(as_index_set(boundary.outline) == expected);
 }
 
-TEST_CASE("带洞方块：外环一条、洞环一条", "[contour]") {
+// 带洞方块：外环一条、洞环一条
+TEST_CASE("contour: square with a hole yields one outer ring and one hole ring", "[contour]") {
     auto pixels = make_block(0, 0, 5, 5);
     // 挖掉中心 (2, 2)
     std::vector<Coord> kept;
@@ -194,7 +197,8 @@ TEST_CASE("带洞方块：外环一条、洞环一条", "[contour]") {
     CHECK(area_twice(boundary.outline) + area_twice(hole) == 2LL * 24);
 }
 
-TEST_CASE("成员不足 3 个像素：返回空 Boundary（D-7）", "[contour]") {
+// 成员不足 3 个像素：返回空 Boundary（D-7）
+TEST_CASE("contour: fewer than 3 member pixels yield an empty boundary (D-7)", "[contour]") {
     const spatial::Boundary single = spatial::extract_boundary({Coord{3, 3}});
     CHECK(single.outline.empty());
     CHECK(single.holes.empty());
@@ -208,7 +212,8 @@ TEST_CASE("成员不足 3 个像素：返回空 Boundary（D-7）", "[contour]")
     CHECK(none.holes.empty());
 }
 
-TEST_CASE("三点共线的成员：沿像素边界追踪仍产出合法矩形", "[contour]") {
+// 三点共线的成员：沿像素边界追踪仍产出合法矩形
+TEST_CASE("contour: collinear members still trace a valid rectangle", "[contour]") {
     // Phase 2 的实现在像素中心取样，共线像素连成的环有向面积为 0，被判为退化。
     // 改在像素边界取样后，一行三像素围出的是 1 像素高的矩形，面积恰为 3 ——
     // 它不是退化几何，不应被剔除。
@@ -222,7 +227,8 @@ TEST_CASE("三点共线的成员：沿像素边界追踪仍产出合法矩形", 
           std::set<Index>{Index{5, 5}, Index{5, 8}, Index{6, 8}, Index{6, 5}});
 }
 
-TEST_CASE("追踪结果与输入像素的书写顺序无关", "[contour]") {
+// 追踪结果与输入像素的书写顺序无关
+TEST_CASE("contour: trace result is independent of input pixel order", "[contour]") {
     auto pixels = make_plus();
     const spatial::Boundary forward = spatial::extract_boundary(pixels);
 

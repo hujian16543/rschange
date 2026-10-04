@@ -92,21 +92,24 @@ bool is_subsequence(const std::vector<Coord>& result, const std::vector<Coord>& 
 
 }  // namespace
 
-TEST_CASE("点在字面为点退化的线段上：返回欧氏距离", "[simplify]") {
+// 点在字面为点退化的线段上：返回欧氏距离
+TEST_CASE("simplify: point-to-degenerate-segment distance is euclidean", "[simplify]") {
     const Coord p{0, 4};
     const Coord a{3, 0};
     // 欧氏距离：根号下 (0-3)^2 + (4-0)^2 = 5
     CHECK(spatial::point_line_distance(p, a, a) == 5.0);
 }
 
-TEST_CASE("点到水平线段的垂距", "[simplify]") {
+// 点到水平线段的垂距
+TEST_CASE("simplify: perpendicular distance to a horizontal segment", "[simplify]") {
     const Coord a{2, 0};
     const Coord b{2, 6};
     CHECK(spatial::point_line_distance(Coord{5, 3}, a, b) == 3.0);
     CHECK(spatial::point_line_distance(Coord{2, 3}, a, b) == 0.0);
 }
 
-TEST_CASE("输入少于 4 点时原样返回", "[simplify]") {
+// 输入少于 4 点时原样返回
+TEST_CASE("simplify: fewer than 4 points are returned unchanged", "[simplify]") {
     const std::vector<Coord> three = {Coord{0, 0}, Coord{0, 3}, Coord{3, 0}};
     CHECK(spatial::simplify_boundary(three, 2.0) == three);
 
@@ -114,7 +117,8 @@ TEST_CASE("输入少于 4 点时原样返回", "[simplify]") {
     CHECK(spatial::simplify_boundary(two, 2.0) == two);
 }
 
-TEST_CASE("容差非正时不简化：顶点原样保留", "[simplify]") {
+// 容差非正时不简化：顶点原样保留
+TEST_CASE("simplify: non-positive tolerance keeps every vertex", "[simplify]") {
     const auto ring = make_stairs();
     REQUIRE(ring.size() == 8);
 
@@ -128,7 +132,8 @@ TEST_CASE("容差非正时不简化：顶点原样保留", "[simplify]") {
     CHECK(spatial::simplify_boundary(ring, 1.0).size() < ring.size());
 }
 
-TEST_CASE("简化结果只取输入顶点且保持循环顺序", "[simplify]") {
+// 简化结果只取输入顶点且保持循环顺序
+TEST_CASE("simplify: result is a subsequence in cyclic order", "[simplify]") {
     const auto ring = make_octagon();
     const auto simplified = normalize_ring(spatial::simplify_boundary(ring, 1.0));
 
@@ -139,7 +144,8 @@ TEST_CASE("简化结果只取输入顶点且保持循环顺序", "[simplify]") {
     CHECK(is_subsequence(simplified, normalize_ring(ring)));
 }
 
-TEST_CASE("容差越大顶点数不增", "[simplify]") {
+// 容差越大顶点数不增
+TEST_CASE("simplify: vertex count is non-increasing in tolerance", "[simplify]") {
     const auto ring = make_octagon();
     const std::size_t count_small = spatial::simplify_boundary(ring, 0.5).size();
     const std::size_t count_mid = spatial::simplify_boundary(ring, 1.5).size();
@@ -149,7 +155,8 @@ TEST_CASE("容差越大顶点数不增", "[simplify]") {
     CHECK(count_large <= count_mid);
 }
 
-TEST_CASE("结果与起始像素无关（D-8）", "[simplify]") {
+// 结果与起始像素无关（D-8）
+TEST_CASE("simplify: result is independent of the start vertex (D-8)", "[simplify]") {
     const auto ring = make_octagon();
     const std::vector<double> tolerances = {0.5, 1.0, 2.0, 3.0};
 
@@ -169,7 +176,8 @@ TEST_CASE("结果与起始像素无关（D-8）", "[simplify]") {
     }
 }
 
-TEST_CASE("反转绕行方向得到同一顶点集合", "[simplify]") {
+// 反转绕行方向得到同一顶点集合
+TEST_CASE("simplify: reversing winding yields the same vertex set", "[simplify]") {
     const auto ring = make_octagon();
     std::vector<Coord> reversed(ring.rbegin(), ring.rend());
 

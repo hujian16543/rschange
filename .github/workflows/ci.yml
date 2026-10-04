@@ -1,0 +1,311 @@
+# ============================================================================
+# 双平台 CI
+#
+# 为什么是「双平台」而不是「Linux 加个 Windows 兜底」
+# ------------------------------------------------
+# 本项目的 C++ 引擎在两个平台上走的是**两套完全不同的工具链**：Windows 是
+# MSYS2 的 mingw-w64 g++（配 python.org 的 MSVC 版 CPython），Linux 是系统
+# GCC（配系统 CPython）。两套工具链的 ABI、DLL/SO 加载方式、GDAL 包版本都不同，
+# 只跑一个平台无法发现另一侧的问题——历史上「本机好好的、换平台就崩」正是
+# 这类差异造成的。故两个平台都是**必过项**，无主次之分。
+#
+# MSYS2 路径转换（防复发，勿删）
+# ----------------------------
+# MSYS2 shell 会把形如 `/c/...` 或 `-Dxxx=/path` 的参数自动改写为 Windows
+# 路径，导致 CMake 收到被破坏的 `-D` 参数（症状是缓存变量值变成 `C:/Program
+# Files/Git/path` 之类）。规避方式有两种：设 `MSYS2_ARG_CONV_EXCL="*"` 禁用
+# 全部转换，或**根本不在 MSYS2 shell 里跑 CMake**。
+#
+# 本文件采用后者：CMake 用 runner 预装的 Windows 原生版本，只在 PATH 里加入
+# MSYS2 的 mingw64/bin 以取得 Ninja、MinGW 编译器与运行期 DLL。这样不进入
+# MSYS2 shell，路径转换问题从根上不存在，也就不依赖那个环境变量的记忆。
+# 若将来改回在 MSYS2 shell 内执行 CMake，必须在脚本里显式设
+# `MSYS2_ARG_CONV_EXCL="*"`。
+#
+# MSYS2 安装位置（防复发，勿删）
+# ----------------------------
+# setup-msys2 在 release 模式（默认值）下**不**装到 `C:\msys64`，而装到
+# `$RUNNER_TEMP/msys64`；GitHub 托管 runner 上即 `D:\a\_temp\msys64`。依据是
+# 该动作源码 main.js：
+#
+#     let dest = (input.location !== null) ? input.location : tmp_dir;
+#     msysRootDir = path.join(dest, 'msys64');
+#
+# 因此**禁止**在任何步骤里写死 `C:/msys64/mingw64`。此前正是这样写死的，症状
+# 极具误导性：pacman 阶段一切正常（gcc/gdal 都如实装上、日志无一处报错），
+# 直到 CMake 配置阶段才报
+#
+#     The CMAKE_CXX_COMPILER: C:/msys64/mingw64/bin/g++.exe
+#     is not a full path to an existing compiler tool.
+#
+# 唯一真相源是动作输出 `steps.msys2.outputs.msys2-location`；由「解析 MinGW 根
+# 目录」步骤归一化并校验后写入环境变量 MINGW64_ROOT，供后续步骤引用。
+#
+# 三段门禁的定位
+# --------------
+# 1. C++ 单测（CTest）与 Python 测试（pytest）——功能正确性
+# 2. 契约门禁（tests/contract + gen_openapi.py --check）——契约未漂移
+# 3. scripts/verify_*.py——环境、配置、绑定、版本、容器资产的自洽性
+# 三者任一失败即红。Phase 5 的 G5.2 正是靠第 2 段抓住「改了后端字段却没重新
+# 生成前端类型」这类改动。
+# ============================================================================
+name: CI
+
+on:
+  push:
+    # 阶段分支与证据分支同样触发。理由有两条：
+    #   1. G6.1 的判据是「push 后 Actions 双平台全绿」，而阶段分支在合入 main
+    #      **之前**就必须是绿的——否则是红了才进 main，回退成本高。
+    #   2. GitHub 的 workflow_dispatch 只能触发默认分支上已注册的 workflow，
+    #      阶段分支若不在触发列表内，首次验证将无从发起。
+    branches: [main, "phase-*", "verify-*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一分支的旧运行在新推送后即取消：CI 的价值在最新提交的结果。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # 减少无关噪声输出；不改变任何构建语义。
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  UV_LINK_MODE: "copy"
+  # UTF-8 stdio（防复发，勿删）
+  # ------------------------
+  # 仓库的门禁脚本与 CLI 以中文输出（如 `[PASS] 契约产物与当前代码一致：…`）。
+  # Windows 上 Python 的 stdio 编码取自进程 locale：GitHub 托管 runner 为
+  # `en-US`、ANSI 代码页 1252，stdout 被重定向为管道时 `print()` 一遇中文即报
+  #
+  #     UnicodeEncodeError: 'charmap' codec can't encode characters
+  #
+  # 本机是中文 Windows（ACP=936），能表示中文，故此缺陷**只在 CI 上暴露**。
+  #
+  # 设 `PYTHONUTF8=1` 开启 PEP 540 UTF-8 模式：stdio 与
+  # `locale.getpreferredencoding(False)` 一并归一为 UTF-8。后者是必需的——
+  # `tests/contract/test_openapi_frozen.py` 以 `subprocess.run(text=True)` 读取
+  # 子进程输出，父进程若仍按 cp1252 解码 UTF-8 字节流，会以 `UnicodeDecodeError`
+  # 的形式二次失败。
+  #
+  # 这不只是规避：**门的判定结果不应取决于运行环境的 locale**。Linux 作业的
+  # locale 是 UTF-8、Windows 作业是 cp1252，两个平台本不可比；显式声明后两侧
+  # stdio 语义一致，G6.1 的「双平台全绿」才是同一判据。仓库的中文输出以「运行
+  # 环境提供 UTF-8 stdio」为前提，该前提属开发环境要求，须记入面向开发者的文档。
+  PYTHONUTF8: "1"
+
+jobs:
+  verify:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # 一个平台失败不取消另一个：需要同时看到两侧的完整结果才能判断是
+      # 平台特有问题还是共性问题。
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-latest
+            preset: dev-linux
+          - name: windows-mingw
+            os: windows-latest
+            preset: dev-win
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 版本必须与 .python-version 精确一致：_spatial 扩展的 ABI 基线是
+      # 3.14.6，次版本漂移会让基线断言失真而非报错。verify_containers.py
+      # 也把「CI 版本 == .python-version」作为一条判据。
+      - name: 安装 Python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.6"
+          check-latest: false
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # ---------------------------------------------------------------- Linux
+      - name: 安装 GDAL 与 Ninja（Linux）
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgdal-dev ninja-build
+
+      # -------------------------------------------------------------- Windows
+      # 只装编译所需的 MinGW 组件，不装 MSYS2 自带的 CPython：后者一旦进入
+      # PATH，uv 的 Python 解析可能落到那份「空环境」上（本机历史上出现过
+      # 同类问题，见 config/local.example.toml 关于 conda 的说明）。
+      - name: 安装 MinGW 工具链与 GDAL（Windows）
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          # MINGW64（MSVCRT）而非 UCRT64：本项目的扩展 ABI 标签为
+          # mingw_x86_64_msvcrt_gnu，由 verify_bindings.py 断言，与本机开发环境
+          # 必须同源。UCRT64 会改变运行时依赖，不属本阶段可擅自变更的范围。
+          # 该环境已被上游标记为 deprecated，故显式确认以消除告警噪声。
+          msystem: MINGW64
+          suppress-deprecation-warnings: msystem-mingw64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gdal
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+
+      # 见文首「MSYS2 安装位置」。此步骤把动作输出解析为 mingw64 根目录，并在
+      # 继续之前确认 g++.exe 真实存在——失败点前移到这里，报错能直接给出实际
+      # 目录内容，而不是留到 CMake 阶段变成一句「不是有效编译器路径」。
+      - name: 解析 MinGW 根目录（Windows）
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='${{ steps.msys2.outputs.msys2-location }}'
+          root="${root//\\//}"   # D:\a\_temp\msys64 → D:/a/_temp/msys64
+          mingw="$root/mingw64"
+          if [ ! -f "$mingw/bin/g++.exe" ]; then
+            echo "::error::未在 $mingw/bin 找到 g++.exe；MSYS2 根目录解析结果：$root"
+            ls -la "$root" || true
+            ls -la "$mingw/bin" 2>/dev/null | head -n 40 || true
+            exit 1
+          fi
+          echo "MinGW 根目录：$mingw"
+          echo "MINGW64_ROOT=$mingw" >> "$GITHUB_ENV"
+
+      - name: 把 MSYS2 加入 PATH（Windows）
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "$MINGW64_ROOT/bin" >> "$GITHUB_PATH"
+
+      # ------------------------------------------------------- 环境变量注入
+      # 引擎定位与运行期依赖全部经 RSCHANGE_* 环境变量给出，不生成
+      # config/local.toml：配置优先级规定环境变量高于文件，CI 因此不必伪造
+      # 一份「本机配置」，也不会与开发者本机文件产生差异。
+      - name: 注入引擎与运行期环境变量
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            venv_python="$GITHUB_WORKSPACE/.venv/Scripts/python.exe"
+            # 由「解析 MinGW 根目录」写入 GITHUB_ENV；禁止改写为硬编码路径，
+            # 理由见文首「MSYS2 安装位置」。
+            msys_root="$MINGW64_ROOT"
+            echo "SPATIAL_MINGW_ROOT=$msys_root" >> "$GITHUB_ENV"
+            echo "SPATIAL_GDAL_ROOT=$msys_root" >> "$GITHUB_ENV"
+            echo "RSCHANGE_ENGINE__RUNTIME_DLL_DIR=$msys_root/bin" >> "$GITHUB_ENV"
+          else
+            venv_python="$GITHUB_WORKSPACE/.venv/bin/python"
+          fi
+          # CMake 的 Python_EXECUTABLE 与 uv 的解释器必须同一个，否则
+          # find_package(Python) 会解析到系统 Python，扩展装进系统
+          # site-packages 而运行期导入不到。
+          echo "SPATIAL_PYTHON=$venv_python" >> "$GITHUB_ENV"
+          echo "UV_PYTHON=${{ steps.python.outputs.python-path }}" >> "$GITHUB_ENV"
+          echo "RSCHANGE_ENGINE__BUILD_DIR=./engine/build/${{ matrix.preset }}" >> "$GITHUB_ENV"
+
+      - name: 安装 Python 依赖
+        run: uv sync --all-packages --frozen
+
+      # FetchContent 在构建期从 GitHub 拉 nlohmann/json 与 Catch2。缓存 _deps
+      # 既省时间，也降低对上游网络可用性的依赖（未关闭项 O2）。
+      - name: 缓存 FetchContent 依赖
+        uses: actions/cache@v4
+        with:
+          path: engine/build/${{ matrix.preset }}/_deps
+          key: fetchcontent-${{ matrix.preset }}-${{ hashFiles('engine/CMakeLists.txt') }}
+
+      - name: 配置 C++ 编译器缓存
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.preset }}
+
+      - name: 配置引擎
+        working-directory: engine
+        run: >
+          cmake --preset ${{ matrix.preset }}
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: 构建引擎
+        # working-directory 不可省：--preset 需要从 engine/ 目录读取 presets 文件，
+        # 否则 CMake 在仓库根找不到 CMakePresets.json，报
+        # "Could not read presets from <repo root>: File not found"。
+        working-directory: engine
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: C++ 单元测试
+        run: ctest --test-dir engine/build/${{ matrix.preset }} --output-on-failure
+
+      # -o addopts="" 覆盖项目 addopts 里的 -q：否则汇总行被压掉，CI 日志里
+      # 看不到「多少通过、多少跳过」。
+      - name: Python 测试
+        run: uv run pytest -o addopts="" -rs
+
+      - name: 类型检查
+        run: uv run mypy
+
+      - name: 代码检查与格式
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: 契约漂移检测
+        run: uv run python scripts/gen_openapi.py --check
+
+      - name: 仓库自检脚本
+        run: |
+          uv run python scripts/verify_baseline.py --phase 6
+          uv run python scripts/verify_bindings.py
+          uv run python scripts/verify_config.py
+          uv run python scripts/verify_version.py
+          uv run python scripts/verify_containers.py
+
+      # ------------------------------------------------------------ 前端
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          # 与 frontend/package.json 的 @types/node 主版本、docker/Dockerfile.frontend
+          # 的 node 镜像保持一致（verify_containers.py 断言这三处同号）。
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci
+
+      - name: 前端检查
+        working-directory: frontend
+        run: npm run check
+
+      # 契约第二段门禁（与 `scripts/gen_openapi.py --check` 对称，后者守第一段）。
+      # 判据不靠字段名比对：那会漏掉「openapi 已重生成、TS 未重生成、字段名未变、
+      # 仅类型变化」的路径（见 docs/contracts.md §9.12「已知覆盖边界」）。
+      # 这里以入库的 openapi.json 重新生成，再用工作树状态比对，覆盖全部漂移形态。
+      - name: 契约类型零漂移（openapi → TS）
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd frontend
+          npm run gen:types
+          cd ..
+          drift="$(git status --porcelain -- frontend/src/api/generated)"
+          if [ -n "$drift" ]; then
+            echo "::error::前端生成类型与 openapi.json 不一致（契约第二段漂移）：openapi 已更新但未重新生成 TS 类型"
+            echo "$drift"
+            exit 1
+          fi
+
+      - name: 前端构建
+        working-directory: frontend
+        run: npm run build

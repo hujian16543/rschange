@@ -47,7 +47,8 @@ double area_sum(const Json& collection) {
 
 }  // namespace
 
-TEST_CASE("冻结夹具的全链路结果", "[pipeline]") {
+// 冻结夹具的全链路结果
+TEST_CASE("pipeline: frozen fixture end-to-end result", "[pipeline]") {
     const Json meta = fixture::read_json("change_mask.json");
     const int width = meta.at("width").get<int>();
     const int height = meta.at("height").get<int>();
@@ -110,7 +111,8 @@ TEST_CASE("冻结夹具的全链路结果", "[pipeline]") {
     }
 }
 
-TEST_CASE("全链路结果可重复", "[pipeline]") {
+// 全链路结果可重复
+TEST_CASE("pipeline: end-to-end result is reproducible", "[pipeline]") {
     const Json meta = fixture::read_json("change_mask.json");
     const int width = meta.at("width").get<int>();
     const int height = meta.at("height").get<int>();
