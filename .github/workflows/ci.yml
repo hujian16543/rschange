@@ -288,6 +288,24 @@ jobs:
         working-directory: frontend
         run: npm run check
 
+      # 契约第二段门禁（与 `scripts/gen_openapi.py --check` 对称，后者守第一段）。
+      # 判据不靠字段名比对：那会漏掉「openapi 已重生成、TS 未重生成、字段名未变、
+      # 仅类型变化」的路径（见 docs/contracts.md §9.12「已知覆盖边界」）。
+      # 这里以入库的 openapi.json 重新生成，再用工作树状态比对，覆盖全部漂移形态。
+      - name: 契约类型零漂移（openapi → TS）
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd frontend
+          npm run gen:types
+          cd ..
+          drift="$(git status --porcelain -- frontend/src/api/generated)"
+          if [ -n "$drift" ]; then
+            echo "::error::前端生成类型与 openapi.json 不一致（契约第二段漂移）：openapi 已更新但未重新生成 TS 类型"
+            echo "$drift"
+            exit 1
+          fi
+
       - name: 前端构建
         working-directory: frontend
         run: npm run build
