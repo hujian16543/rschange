@@ -11,7 +11,7 @@
 name = "remote-sensing"
 # 工作区根的版本，与产品版本同号（真相源为 backend/pyproject.toml）。
 # 本体不打包，此值仅用于消除版本号漂移，由 scripts/verify_version.py 守护。
-version = "0.6.0"
+version = "1.0.0"
 description = "遥感变化检测平台 · 工作区根（本体不打包，仅作工具链入口）"
 requires-python = ">=3.14,<3.15"
 dependencies = []
