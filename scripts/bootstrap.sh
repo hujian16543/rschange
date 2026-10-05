@@ -135,7 +135,7 @@ fi
 # --- 7 ---------------------------------------------------------------------
 step 7 "下一步"
 printf '\n  环境就绪。后续命令一律走 uv：\n'
-printf '    uv run python scripts/verify_baseline.py --phase 2\n'
+printf '    uv run python scripts/verify_baseline.py --phase 6\n'
 printf '    uv run python scripts/verify_config.py\n'
 printf '    uv run pytest\n'
 printf '    uv run ruff check backend/ scripts/\n'

@@ -11,7 +11,7 @@
 #         │  scripts/gen_openapi.py            （门禁：gen_openapi.py --check）
 #         ▼
 #     docs/api/openapi.json                   （冻结入库）
-#         │  scripts/gen-api-types.sh          （门禁：tests/contract/）
+#         │  scripts/gen-api-types.sh          （门禁：CI 步骤「契约类型零漂移（openapi → TS）」）
 #         ▼
 #     frontend/src/api/generated/data-contracts.ts
 #
