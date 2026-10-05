@@ -1320,10 +1320,10 @@ Phase 2.1 新增的锚点：
 # 单元测试（40 项：边界、非方形、洞、一像素宽结构、几何面积恒等式）
 ctest --test-dir engine/build/dev-win --output-on-failure    # 40/40
 
-# 黄金基线（§7.1 / §7.2 / §7.3，含几何面积一致性）
-uv run --no-sync python scripts/verify_baseline.py --phase 2
+# 黄金基线（§7.1 / §7.2 / §7.3，含几何面积一致性）；--phase 6 与 CI 取值一致
+uv run --no-sync python scripts/verify_baseline.py --phase 6
 
-# 引擎 Python 契约（45 项）
+# 引擎 Python 契约（42 项）
 uv run --no-sync python scripts/verify_bindings.py
 
 # 配置与 CMake 预设的一致性（6 项）
