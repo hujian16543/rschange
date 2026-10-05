@@ -132,7 +132,7 @@ uv sync --all-packages --extra fixtures   # 仅在需要重新生成合成测试
 | 名称 | hidden | inherits | generator | binaryDir | 关键 cacheVariables |
 |---|---|---|---|---|---|
 | `base` | 是 | — | — | `${sourceDir}/build/${presetName}` | `CMAKE_EXPORT_COMPILE_COMMANDS=ON` |
-| `win-base` | 是 | `base` | `Ninja` | 继承 | `CMAKE_BUILD_TYPE=Debug`；`CMAKE_C_COMPILER=$env{SPATIAL_MINGW_ROOT}/bin/gcc.exe`；`CMAKE_CXX_COMPILER=$env{SPATIAL_MINGW_ROOT}/bin/g++.exe`；`SPATIAL_GDAL_ROOT=$env{SPATIAL_GDAL_ROOT}`；`Python_EXECUTABLE=$env{SPATIAL_PYTHON}` |
+| `win-base` | 是 | `base` | `Ninja` | 继承 | `CMAKE_BUILD_TYPE=Debug`；`CMAKE_CXX_COMPILER=$env{SPATIAL_MINGW_ROOT}/bin/g++.exe`；`SPATIAL_GDAL_ROOT=$env{SPATIAL_GDAL_ROOT}`；`Python_EXECUTABLE=$env{SPATIAL_PYTHON}` |
 | `linux-base` | 是 | `base` | `Ninja` | 继承 | `CMAKE_BUILD_TYPE=Debug`；`Python_EXECUTABLE=$env{SPATIAL_PYTHON}` |
 | `dev-win` | 否 | `win-base` | 继承 | `engine/build/dev-win` | 继承（Debug） |
 | `dev-linux` | 否 | `linux-base` | 继承 | `engine/build/dev-linux` | 继承（Debug） |
