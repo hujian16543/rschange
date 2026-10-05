@@ -25,7 +25,7 @@
 /// 定义 `SPATIAL_STATIC`），因此能直接解析该符号。共享库 `spatial` 的消费者
 /// （`_spatial` 绑定模块）看不到它。
 ///
-/// 共享库的导出面由 `scripts/verify_bindings.py` 的 45 项契约检查覆盖，不依赖
+/// 共享库的导出面由 `scripts/verify_bindings.py` 的 42 项契约检查覆盖，不依赖
 /// 本探针。
 
 #if defined(_WIN32)
