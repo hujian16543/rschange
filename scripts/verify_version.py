@@ -65,7 +65,7 @@ PEER_FILES: Final[tuple[tuple[str, str, Path], ...]] = (
 #: 契约产物。其 `info.version` 由 `rschange.__version__` 决定。
 OPENAPI_FILE: Final[Path] = REPO_ROOT / "docs" / "api" / "openapi.json"
 
-#: 版本号格式。本项目的版本号与阶段号绑定（Phase N → 0.N.0），三段式。
+#: 版本号格式。本项目的版本号与阶段号绑定（Phase 1–6 → `0.N.0`；Phase 7 收口 → `1.0.0`），三段式。
 VERSION_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -142,7 +142,7 @@ def collect_checks() -> list[Check]:
             "N.N.N",
             truth,
             bool(VERSION_PATTERN.match(truth)),
-            note="与阶段号绑定：Phase N 出 tag v0.N.0",
+            note="与阶段号绑定：Phase 1–6 出 v0.N.0；Phase 7 收口出 v1.0.0",
         )
     )
 

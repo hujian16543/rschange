@@ -49,9 +49,9 @@
 | 环节 | 实现位置 | 状态 |
 |---|---|---|
 | 栅格读取 | `engine/src/raster_io.cpp` | 已实现 |
-| CVA（多维欧氏距离） | Python，冻结参考实现 | 待迁入 `backend`（Phase 3） |
-| Otsu 阈值 | Python，冻结参考实现 | 待迁入 `backend`（Phase 3） |
-| 后处理（连通域过滤 + 闭运算） | Python（scipy） | 待迁入 `backend`（Phase 3） |
+| CVA（多维欧氏距离） | `backend/src/rschange/detectors/cva.py`（`CvaDetector`） | 已实现（Phase 3 迁入；经 `detectors/registry.py` 注册，`DEFAULT_DETECTOR = "cva"`） |
+| Otsu 阈值 | `backend/src/rschange/detectors/cva.py` 模块级 `otsu_threshold()` / `histogram()` | 已实现（Phase 3 迁入） |
+| 后处理（连通域过滤 + 闭运算） | `backend/src/rschange/postprocess/morphology.py`（`MorphologyPostprocessor`） | 已实现（Phase 3 迁入；本层**无**注册表，参数于构造期由 `api/deps.py` 的 `build_context()` 注入） |
 | 连通域标记 | `engine/src/labeling.cpp` | 已实现 |
 | 边界追踪 | `engine/src/contour.cpp` | 已实现 |
 | 环简化 | `engine/src/simplify.cpp` | 已实现 |
@@ -1261,6 +1261,15 @@ C++ 侧 `extract_regions` 的 4 邻域一致。两处必须同步修改，否则
 | D-7 | `contour.cpp` / `geojson.cpp` | 退化轮廓处理含糊；未覆盖共线情形 | 成员 < 3 返回空 `Boundary`；`forms_polygon` 兜底。Phase 2.1 起共线判据转为防御性（§5.2） |
 | D-8 | `simplify.cpp` | 开曲线 DP 套闭环 ⇒ 结果随起始像素变，且随容差非单调 | 规范化起点 + 三锚点切分 |
 | D-9 | `region.hpp` | 面积字段写作 `are_m2`，与 GeoJSON 的 `area_m2` 不一致 | 统一为 `area_m2` |
+
+> **编号口径（本节即权威）**：`D-1 … D-9` 是**引擎侧**缺陷的完整目录，含根因与修复判据。仓库另有两套局部编号，**与本表不同源**：
+>
+> * `docs/verification/phase-3.md` §3 的 `D1 … D7`（后端分层缺陷核对，另见 `docs/contracts.md` §9.7 与 `api/app.py` 的 `D1` 注释）；
+> * `backend/src/rschange/spatial/__init__.py` docstring 的「附录 D-5」（重构方案的架构条目，指 `_spatial` 的唯一访问点，**不是**缺陷）。
+>
+> 引用时必须写全来源文档名。两套缺陷编号中仅 `D-3` 恰好同义（属性面积重复计 N 倍）。碰撞登记见 `docs/MIGRATION.md` §5.2。
+>
+> 本表**未收录 `D-5`**（= DLL 路径解析逻辑被复制四份，属后端缺陷），其定义见 `docs/verification/phase-3.md` A.3 与 `backend/src/rschange/tests/test_architecture.py` 的 `test_backend_has_no_machine_local_paths`（G3.5）。
 
 ### 8.2 Phase 2 新发现
 
