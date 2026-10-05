@@ -239,7 +239,7 @@
 | D-6 | `unordered_map` 迭代序（**一致**） | `unordered_map` 迭代序（**一致**） |
 | D-7 | 退化轮廓处理 | 异常信息外泄 |
 
-本文 §5.1 采用 `algorithm.md` §8.1 口径。**待核实**：应以哪份为准并统一。
+本文 §5.1 采用 `algorithm.md` §8.1 口径。**两套编号并存属「作用域不同」，不是同一事实的两种说法**：`algorithm.md` §8.1 的 `D-1…D-9` 记 **C++ 引擎**缺陷；`phase-3.md` §3 的 `D1…D7` 记**后端分层**缺陷；`spatial/__init__.py` docstring 的「附录 D-5」是**架构条目**，与缺陷无关。该作用域划分已写入 `docs/algorithm.md` §8.1 的「编号口径（本节即权威）」引用块（`v1.0.0`），引用时写全来源文档名即可，**无需**强行统一编号。
 
 > 上表「第二套口径」中的三项也确实已修复并可独立核验：CORS（`app.py:126-132` + `config.py` `_reject_wildcard`）；无残留执行语句 `print`（`docs/verification/phase-3.md` A.2 实测 0 命中）；异常不外泄（`api/errors.py:102-127`，`phase-3.md` A.4 附真实响应体）。
 
@@ -285,7 +285,7 @@
 | `src/core/tests/preview.png`、`change_mask.tif` | **删除** | 手工生成的中间产物，未被任何判据引用；新仓库的 `.raw` + `.json` 夹具对由 `scripts/make_multi_region_fixture.py` 可重生成，属「法定夹具」而非残留 |
 | `src/frontend/public/test.geojson` | **删除** | 前端写死的测试矢量，有独立于契约漂移的风险；新仓库的前端夹具改由 `src/test/fixtures.ts` 与契约逐字段对齐 |
 | `src/frontend/src/assets/hero.png`、`vite.svg` | **删除** | 属 Vite 脚手架与装饰资源，非产品资产 |
-| `Debug_lesson.txt`、`project2-lessons-and-interview.txt` | **暂无落点** | `docs/lessons/` 与 `docs/archive/` 仅有 `.gitkeep`（`_work/p7/inconsistencies.md` 条目 11）。13 条教训尚未整理进新仓库 |
+| `Debug_lesson.txt`、`project2-lessons-and-interview.txt` | **已迁入** `docs/lessons/` | `docs/lessons/{README.md,debug-lessons.md,interview-notes.md}`：13 条教训逐条整理为「现象 / 根因 / 修复 / 新仓库落点 / 复发判据」，面试话术单列 `interview-notes.md`（详见 §2.5）。旧仓库这两个源文件随归档 tag `archived-2026-09-18` 永久保留 |
 | `requirements.txt` | **替换** | 由 uv workspace + `uv.lock` 取代；7 包无钉被 9 个带约束的运行依赖替代，`rasterio` 降为可选 extra |
 | 根级 `Dockerfile.backend` / `docker-compose.yml` 与 `src/frontend/` 下的 `Dockerfile.frontend` / `nginx.conf` | **重新落位** | 部署文件横跨两级目录是结构债；统一收敛到顶层 `docker/` |
 
@@ -362,7 +362,7 @@ CI 的「仓库自检脚本」步骤按顺序跑 `verify_baseline.py --phase 6` 
 
 | # | 事项 | 现状 |
 |---|---|---|
-| 1 | D 系列编号存在两套口径（D-1 / D-2 / D-7 在 `algorithm.md` §8.1 与 `app.py:121`、`contracts.md:266`、`phase-3.md` 之间冲突） | 本文 §5.1 采用 `algorithm.md` §8.1 口径。**待核实**以哪份为准 |
+| 1 | D 系列编号存在两套口径（D-1 / D-2 / D-7 在 `algorithm.md` §8.1 与 `app.py:121`、`contracts.md:266`、`phase-3.md` 之间碰撞） | **已关闭**：定性为「作用域不同」而非冲突——§8.1 的 `D-1…D-9` 记 C++ 引擎缺陷、`phase-3.md` §3 的 `D1…D7` 记后端分层缺陷、`spatial/__init__.py` docstring 的「附录 D-5」是架构条目。划分已写入 `docs/algorithm.md` §8.1 的「编号口径（本节即权威）」引用块；本文 §5.1 采用 §8.1 口径 |
 | 2 | `src/backend/tests/test_cva.py` 的具体内容 | 仅知其存在（旧 `src/` 文件树）；`legacy-digest.md` 未提炼其用例 |
 | 3 | 旧仓库 `src/frontend/Dockerfile.frontend` 的内容 | `legacy-digest.md` 明确记录「本次任务未读取其内容」 |
 | 4 | 旧 `src/core/src/bindings.cpp` 是否有除 D-1 之外的中间形态（例如 `nb::noconvert` 何时加入） | `algorithm.md` §8.2 记为「Phase 2 新发现」，即 `noconvert` 属重构期新增而非旧仓库修复；**未**回旧仓库逐版核对 |

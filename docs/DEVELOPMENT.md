@@ -215,7 +215,9 @@ uv run pytest -m "not slow"         # 排除需真实影像的用例
 "tests"]`、`pythonpath = ["backend/src"]`、`addopts = "-q --strict-markers"`。
 
 `-q` 会压掉「多少通过、多少跳过」的汇总行，故 CI 用 `-o addopts=""` 覆盖它。
-规模：Python 123 个用例（后端 112 + 根 `tests/` 11）。
+规模**两个口径必须区分**：源码静态 `def test_` 计数 **123**（`backend/` 112 + 根 `tests/` 11）；
+`pytest` 实际收集 **148** 个用例，差额来自 `@pytest.mark.parametrize` 展开。验收报告（如
+`docs/verification/phase-6.md` §9 表 E 行）报的是「**148 passed**」，静态计数才是 123。
 
 `_spatial` 不可用时，依赖引擎的用例**跳过**而非失败（`engine_ready` 夹具）。
 
@@ -252,7 +254,7 @@ npm run build     # tsc -b && vite build
 | # | 命令 | 检什么 | 失败意味着什么 |
 |---|---|---|---|
 | 1 | `ctest --test-dir engine/build/<preset> --output-on-failure` | 引擎 40 个 Catch2 用例：连通域顺序、轮廓环、GeoJSON 归属、简化、栅格 IO | 引擎行为回归或本机构建产物过期 |
-| 2 | `uv run pytest -o addopts="" -rs` | 后端与契约测试（123 用例） | 功能或契约回归 |
+| 2 | `uv run pytest -o addopts="" -rs` | 后端与契约测试（静态 `def test_` **123** 个；参数化展开后收集 **148** 个用例） | 功能或契约回归 |
 | 3 | `uv run mypy` | `strict = true`，`files = ["backend/src"]` | 类型不严；`rschange.tests.*` 仅放宽 `disallow_untyped_defs` / `disallow_incomplete_defs` |
 | 4 | `uv run ruff check .` | 规则集 `E,F,W,I,N,UP,B,C4,SIM,RUF`；`line-length=100`；`src=["backend/src","scripts"]` | 代码风格或未用导入等问题。**必须是 `ruff check .`**（与 CI 一致），而非 `ruff check backend/` |
 | 5 | `uv run ruff format --check .` | 格式（双引号、100 列） | 未格式化。E501 由 formatter 承担，故 `ignore` 含 `E501` |

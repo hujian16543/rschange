@@ -72,7 +72,7 @@
 | Python 测试 | `pytest` **148 passed** | `docs/verification/phase-6.md` §9-E |
 | 前端测试 | `vitest` **109 passed**（6 文件） | `docs/verification/phase-6.md` §9-K |
 | 类型检查 | `mypy` strict **36 源文件 0 错** | `pyproject.toml:104-105`；`phase-6.md` §9-F |
-| 静态检查 | `ruff check` / `format` 通过（**50 files**） | `pyproject.toml:68-98`；`phase-6.md` §9-G |
+| 静态检查 | `ruff check` 通过；`ruff format --check` **51 files already formatted**（Phase 6 时为 50，Phase 7 新增根 `CONTRIBUTING.md` 后 +1） | `pyproject.toml:67-98`；`phase-6.md` §9 表 G 行 |
 | 响应契约字段 | `DetectionResponse` **12 字段**（7 必填 + 5 可选） | `backend/src/rschange/api/schemas/detection.py:56-74` |
 | 领域异常 | **12** 个异常类 | `backend/src/rschange/errors.py` |
 | `_spatial` 公开函数 | **4** 个（`read_raster`/`write_raster`/`mask_to_geojson`/`print_gdal_version`） | `docs/contracts.md` §3；`scripts/verify_bindings.py` |

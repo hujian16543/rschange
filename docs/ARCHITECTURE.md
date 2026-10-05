@@ -389,7 +389,7 @@ ctest --test-dir engine/build/dev-win --output-on-failure
 | Python `pytest` | **148 passed** | `pytest.log`；源码静态 `def test_` 计数 123（`backend` 112 + 根 `tests/` 11），差额来自 `@pytest.mark.parametrize` 展开 |
 | 前端 `vitest` | **109 passed**（6 文件） | `fe_check.log` |
 | `mypy` | 36 源文件 0 错 | `mypy.log` |
-| `ruff check` / `format` | 通过 / 50 files already formatted | `ruff_check.log` / `ruff_format.log` |
+| `ruff check` / `format` | `All checks passed!` / **51** files already formatted（Phase 6 收口时为 50；Phase 7 新增根 `CONTRIBUTING.md` 后 +1——`ruff format` 会一并格式化**根目录** Markdown 内的 Python 代码块，`docs/` 则由 `extend-exclude` 排除。计数构成 = 49 个 `.py` + 根 `README.md` + `CONTRIBUTING.md`） | Phase 6 原始日志 `ruff_check.log` / `ruff_format.log`；Phase 7 复跑见 `docs/verification/phase-7.md` |
 | `verify_*` 五脚本 | 全通过 | `verify_all.log` |
 
 ### 7.5 CI 双平台矩阵
@@ -463,7 +463,7 @@ ctest --test-dir engine/build/dev-win --output-on-failure
 | 2 | `notebooks/`（仓库根，当前为空目录）是否有既定用途 | 本次 `ls` 结果为空；旧仓库 `src/core/src/remote-sensing/sensing.ipynb` 的承接位置未在任何文档声明 |
 | 3 | `ctest` 注册用例数 40 与 `docs/verification/phase-2.md` 历史记录「38/38」的差异来源 | Phase 2 时为历史快照；`docs/verification/phase-6.md` §9 表 D 行实测同为 40/40。**未**追查中间版本差异，不影响当前结论 |
 | 4 | `engine/CMakeLists.txt` 的 `project VERSION 0.2.0` 与仓库版本 `1.0.0` 不同号 | 引擎版本**不在** `verify_version.py` 的 5 项判据内（`new-arch-digest.md` B5）；属已知不自洽，写文档时勿据该值判引擎世代 |
-| 5 | D 系列缺陷编号存在两套口径 | `docs/algorithm.md` §8.1 的 D-1 = 2D 掩膜尺寸解析，而 `app.py:121` 与 `contracts.md:266` 的 D1 = CORS 通配符；D-2 / D-7 同理存在碰撞。`docs/MIGRATION.md` 采用 `algorithm.md` §8.1 口径并记录该碰撞 —— **待核实**应以哪份为准并统一 |
+| 5 | D 系列缺陷编号存在两套口径 | `docs/algorithm.md` §8.1 的 D-1 = 2D 掩膜尺寸解析，而 `app.py:121` 与 `contracts.md:266` 的 D1 = CORS 通配符；D-2 / D-7 同理存在碰撞。**已定性为「作用域不同」而非冲突**：§8.1 的 `D-1…D-9` 记 C++ 引擎缺陷，`phase-3.md` §3 的 `D1…D7` 记后端分层缺陷，`spatial/__init__.py` docstring 的「附录 D-5」是架构条目。该划分已写入 `docs/algorithm.md` §8.1 的「编号口径」引用块，故**不再**标 `待核实` |
 
 ---
 
