@@ -200,7 +200,7 @@ Write-Step 7 "下一步"
 # ------------------------------------------------------------------
 Write-Host ""
 Write-Host "  环境就绪。后续命令一律走 uv，不激活 venv 也能执行：" -ForegroundColor White
-Write-Host "    uv run python scripts/verify_baseline.py --phase 2   # 基线锚点校验" -ForegroundColor DarkGray
+Write-Host "    uv run python scripts/verify_baseline.py --phase 6   # 基线锚点校验" -ForegroundColor DarkGray
 Write-Host "    uv run python scripts/verify_config.py               # 配置一致性校验" -ForegroundColor DarkGray
 Write-Host "    uv run pytest                                        # 单元与集成测试" -ForegroundColor DarkGray
 Write-Host "    uv run ruff check backend/ scripts/                  # 静态检查" -ForegroundColor DarkGray

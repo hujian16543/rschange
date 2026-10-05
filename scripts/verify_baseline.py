@@ -33,8 +33,8 @@
 
 用法
 ----
-    uv run python scripts/verify_baseline.py --phase 2
-    uv run python scripts/verify_baseline.py --phase 2 --verbose
+    uv run python scripts/verify_baseline.py --phase 6
+    uv run python scripts/verify_baseline.py --phase 6 --verbose
 """
 
 from __future__ import annotations
