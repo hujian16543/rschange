@@ -6,7 +6,7 @@
 > 阶段验收报告 `docs/verification/phase-2.md`／`phase-2.1.md`／`phase-3.md`／`phase-5.md`／`phase-6.md`、
 > 整理版 `debug-lessons.md`、旧仓库原始素材 `project2-lessons-and-interview.txt`。
 >
-> **数字纪律**：每个数字必须可在仓库（版本 `1.0.0`，Phase 7 收口）核对，落点以 `文件:行号` 或**测试名**给出；
+> **数字纪律**：每个数字必须可在仓库（版本 `1.0.1`，Phase 7 收口）核对，落点以 `文件:行号` 或**测试名**给出；
 > 无法核实者标 `待核实`，且**禁止**在讲述中当作既成事实。
 > 数字**实测于 Phase 6 收口 tip**（`dc8ee2b`／`v0.6.0`）；Phase 7 只增改文档，未改产品代码与黄金基线。
 >
@@ -72,7 +72,7 @@
 | Python 测试 | `pytest` **148 passed** | `docs/verification/phase-6.md` §9-E |
 | 前端测试 | `vitest` **109 passed**（6 文件） | `docs/verification/phase-6.md` §9-K |
 | 类型检查 | `mypy` strict **36 源文件 0 错** | `pyproject.toml:104-105`；`phase-6.md` §9-F |
-| 静态检查 | `ruff check` 通过；`ruff format --check` **51 files already formatted**（Phase 6 时为 50，Phase 7 新增根 `CONTRIBUTING.md` 后 +1） | `pyproject.toml:67-98`；`phase-6.md` §9 表 G 行 |
+| 静态检查 | `ruff check` 通过；`ruff format --check` **52 files already formatted**（Phase 6 时为 50；Phase 7 新增根 `CONTRIBUTING.md` 后 +1，v1.0.1 新增 `scripts/verify_doc_paths.py` 再 +1） | `pyproject.toml:67-98`；`phase-6.md` §9 表 G 行 |
 | 响应契约字段 | `DetectionResponse` **12 字段**（7 必填 + 5 可选） | `backend/src/rschange/api/schemas/detection.py:56-74` |
 | 领域异常 | **12** 个异常类 | `backend/src/rschange/errors.py` |
 | `_spatial` 公开函数 | **4** 个（`read_raster`/`write_raster`/`mask_to_geojson`/`print_gdal_version`） | `docs/contracts.md` §3；`scripts/verify_bindings.py` |

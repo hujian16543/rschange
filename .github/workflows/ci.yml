@@ -269,6 +269,7 @@ jobs:
           uv run python scripts/verify_config.py
           uv run python scripts/verify_version.py
           uv run python scripts/verify_containers.py
+          uv run python scripts/verify_doc_paths.py
 
       # ------------------------------------------------------------ 前端
       - name: 安装 Node
