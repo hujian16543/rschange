@@ -234,7 +234,7 @@ backend → _spatial（nanobind 绑定层）→ libspatial（引擎核心）→ 
 api/ → pipeline/ → detectors/ · postprocess/ → io/ → spatial/ → config.py · logging.py · errors.py
 ```
 
-**反向依赖禁止清单**（`tests/test_architecture.py:144`）：`config.py` / `logging.py` / `errors.py` / `spatial/` / `io/` / `postprocess/` / `detectors/` 一律禁止导入 `rschange.api` 与 `rschange.pipeline`。
+**反向依赖禁止清单**（`backend/src/rschange/tests/test_architecture.py:144`）：`config.py` / `logging.py` / `errors.py` / `spatial/` / `io/` / `postprocess/` / `detectors/` 一律禁止导入 `rschange.api` 与 `rschange.pipeline`。
 
 ### 4.2 装配点唯一
 
@@ -267,14 +267,14 @@ api/ → pipeline/ → detectors/ · postprocess/ → io/ → spatial/ → confi
 
 | 约束 | 守护用例 | 位置 |
 |---|---|---|
-| backend 内无机器本地路径（G3.5） | `test_backend_has_no_machine_local_paths` | `tests/test_architecture.py:51` |
+| backend 内无机器本地路径（G3.5） | `test_backend_has_no_machine_local_paths` | `backend/src/rschange/tests/test_architecture.py:51` |
 | `import rschange.pipeline` 不拉入引擎与算法 | `test_pipeline_import_does_not_load_engine_or_algorithms` | `:67` |
 | 算法层 import 仅存在于 `TYPE_CHECKING` | `test_pipeline_imports_algorithms_only_for_typing` | `:120` |
 | 下层禁止导入上层 | `test_lower_layers_do_not_import_upper_layers` | `:137` |
 | 叶层仅互相依赖 | `test_leaf_modules_depend_only_on_each_other` | `:182` |
 | 契约类不得依赖具体实现（含 numpy 也在 `TYPE_CHECKING` 下） | `test_detector_contract_has_no_concrete_dependencies` | `:196` |
 | 新增算法后 `change_detection.py` 哈希不变（G3.4） | `test_new_detector_is_pluggable_without_pipeline_change` | `:227` |
-| HTTP 边界：路由 / 错误映射 / 目录穿越 / CORS / 体积上限 | `tests/test_api.py`（19 个 `def test_`） | `backend/src/rschange/tests/` |
+| HTTP 边界：路由 / 错误映射 / 目录穿越 / CORS / 体积上限 | `test_api.py`（19 个 `def test_`） | `backend/src/rschange/tests/` |
 | 契约三层字段一致、`status` 三层皆无 | `tests/contract/`（3 文件 9 用例） | `tests/contract/` |
 
 ---
@@ -323,7 +323,7 @@ frontend/src/api/generated/data-contracts.ts   ← 冻结入库
 | 3 | `config.py`（仅当有可调参数） | 新增继承 `_StrictModel` 的 Settings 类（`extra="forbid"`，每个嵌套模型须单独声明） |
 | 4 | `config/default.toml` + `config/local.example.toml` | 同步新增；否则 `verify_config.py` 的模板对齐判据会失配 |
 | 5 | `api/deps.py:build_context()` | 把 `settings.<section>` 注入构造函数（参照 `MorphologyPostprocessor` 的写法） |
-| 6 | `tests/test_detectors_postprocess.py` | 补用例；重置用 `restores_registry` 夹具 |
+| 6 | `backend/src/rschange/tests/test_detectors_postprocess.py` | 补用例；重置用 `restores_registry` 夹具 |
 | 7 | `docs/contracts.md` §9.11 / §10 | 触及契约时走 §8 变更流程 |
 
 **禁止改** `backend/src/rschange/pipeline/change_detection.py`。判据：`test_architecture.py:227`。
@@ -389,7 +389,7 @@ ctest --test-dir engine/build/dev-win --output-on-failure
 | Python `pytest` | **148 passed** | `pytest.log`；源码静态 `def test_` 计数 123（`backend` 112 + 根 `tests/` 11），差额来自 `@pytest.mark.parametrize` 展开 |
 | 前端 `vitest` | **109 passed**（6 文件） | `fe_check.log` |
 | `mypy` | 36 源文件 0 错 | `mypy.log` |
-| `ruff check` / `format` | `All checks passed!` / **51** files already formatted（Phase 6 收口时为 50；Phase 7 新增根 `CONTRIBUTING.md` 后 +1——`ruff format` 会一并格式化**根目录** Markdown 内的 Python 代码块，`docs/` 则由 `extend-exclude` 排除。计数构成 = 49 个 `.py` + 根 `README.md` + `CONTRIBUTING.md`） | Phase 6 原始日志 `ruff_check.log` / `ruff_format.log`；Phase 7 复跑见 `docs/verification/phase-7.md` |
+| `ruff check` / `format` | `All checks passed!` / **52** files already formatted（Phase 6 收口时为 50；Phase 7 新增根 `CONTRIBUTING.md` 后 +1，v1.0.1 新增 `scripts/verify_doc_paths.py` 再 +1——`ruff format` 会一并格式化**根目录** Markdown 内的 Python 代码块，`docs/` 则由 `extend-exclude` 排除。计数构成 = 50 个 `.py` + 根 `README.md` + `CONTRIBUTING.md`） | Phase 6 原始日志 `ruff_check.log` / `ruff_format.log`；Phase 7 复跑见 `docs/verification/phase-7.md` |
 | `verify_*` 五脚本 | 全通过 | `verify_all.log` |
 
 ### 7.5 CI 双平台矩阵
@@ -419,7 +419,7 @@ ctest --test-dir engine/build/dev-win --output-on-failure
 | 错误响应形状 | `{"detail": str, "code": str}`；422 额外含 `errors` | `contracts.md:223-225` |
 | 领域异常类个数 | 12 | `errors.py`、`contracts.md:229-244` |
 | `_spatial` 公开函数 | 4：`read_raster` / `write_raster` / `mask_to_geojson` / `print_gdal_version` | `contracts.md` §3、`verify_bindings.py` |
-| 版本真相源 | `backend/pyproject.toml` 的 `[project].version`（当前 `1.0.0`） | `pyproject.toml:17`、`verify_version.py` 判据 1 |
+| 版本真相源 | `backend/pyproject.toml` 的 `[project].version`（当前 `1.0.1`） | `pyproject.toml:17`、`verify_version.py` 判据 1 |
 | 装配点 | 唯一：`api/deps.py:build_context()` | `deps.py:53-76`、`phase-3.md` B.2 |
 | G3.4 判据 | 新增算法后 `pipeline/change_detection.py` SHA-256 不变 | `contracts.md:306`、`phase-3.md` §5 |
 
@@ -462,7 +462,7 @@ ctest --test-dir engine/build/dev-win --output-on-failure
 | 1 | `docs/verification/phase-6.md` 曾被 `docker/Dockerfile.backend:20-22` 引用为不存在文件 | 该文件现已在 `docs/verification/` 下存在（本次采集时可见），悬空引用应已消除；**待核实** Docker 注释是否需同步更新编号 |
 | 2 | `notebooks/`（仓库根，当前为空目录）是否有既定用途 | 本次 `ls` 结果为空；旧仓库 `src/core/src/remote-sensing/sensing.ipynb` 的承接位置未在任何文档声明 |
 | 3 | `ctest` 注册用例数 40 与 `docs/verification/phase-2.md` 历史记录「38/38」的差异来源 | Phase 2 时为历史快照；`docs/verification/phase-6.md` §9 表 D 行实测同为 40/40。**未**追查中间版本差异，不影响当前结论 |
-| 4 | `engine/CMakeLists.txt` 的 `project VERSION 0.2.0` 与仓库版本 `1.0.0` 不同号 | 引擎版本**不在** `verify_version.py` 的 5 项判据内（`new-arch-digest.md` B5）；属已知不自洽，写文档时勿据该值判引擎世代 |
+| 4 | `engine/CMakeLists.txt` 的 `project VERSION 0.2.0` 与仓库版本 `1.0.1` 不同号 | 引擎版本**不在** `verify_version.py` 的 5 项判据内（`new-arch-digest.md` B5）；属已知不自洽，写文档时勿据该值判引擎世代 |
 | 5 | D 系列缺陷编号存在两套口径 | `docs/algorithm.md` §8.1 的 D-1 = 2D 掩膜尺寸解析，而 `app.py:121` 与 `contracts.md:266` 的 D1 = CORS 通配符；D-2 / D-7 同理存在碰撞。**已定性为「作用域不同」而非冲突**：§8.1 的 `D-1…D-9` 记 C++ 引擎缺陷，`phase-3.md` §3 的 `D1…D7` 记后端分层缺陷，`spatial/__init__.py` docstring 的「附录 D-5」是架构条目。该划分已写入 `docs/algorithm.md` §8.1 的「编号口径」引用块，故**不再**标 `待核实` |
 
 ---

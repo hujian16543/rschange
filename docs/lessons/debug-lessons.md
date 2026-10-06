@@ -1,7 +1,7 @@
 # 调试教训整理版（旧仓库 → 新仓库）
 
 > **素材来源**（均只读）：旧仓库 `Debug_lesson.txt`（5 条表格行）、`project2-lessons-and-interview.txt`「一、学到的东西」（8 条编号条目）。
-> **对照对象**：新仓库 `rschange`（`_build/Remote_sensing`），版本 `1.0.0`（Phase 7 收口）。
+> **对照对象**：新仓库 `rschange`（`_build/Remote_sensing`），版本 `1.0.1`（Phase 7 收口 + v1.0.1 文档路径修正）。
 > 文中的测试与门禁数字**实测于 Phase 6 收口 tip**（`dc8ee2b`／`v0.6.0`）；Phase 7 只增改文档，
 > 产品代码与黄金基线冻结在 Phase 6，故数字未变——全量复跑记录见 `docs/verification/phase-7.md`。
 > **整理纪律**：旧文中的路径、文件名、版本号一律替换为新仓库真实位置；数字取自 `docs/verification/phase-*.md`；无据可查者标 `待核实`。
@@ -31,7 +31,7 @@
 
 | # | 一句话 | 来源 | 新仓库落点 | 守护状态 |
 |---|---|---|---|---|
-| L1 | `os.add_dll_directory` 在 Linux 上不存在 | Debug-1 / p2-① | `backend/.../spatial/loader.py:76` | 有守护（CI linux-gcc 的 mypy） |
+| L1 | `os.add_dll_directory` 在 Linux 上不存在 | Debug-1 / p2-① | `backend/src/rschange/spatial/loader.py:76` | 有守护（CI linux-gcc 的 mypy） |
 | L2 | 声明与定义的 const 不一致 → `undefined symbol` | Debug-2 / p2-② | `engine/src/raster_io.cpp:13` + 双平台构建 | 有守护（编译期 + `verify_bindings.py`） |
 | L3 | Git Bash MSYS 路径转换污染诊断结论 | Debug-3 / p2-⑥ | `.github/workflows/ci.yml:12-23` | **部分**——无针对路径转换的判据（见 L3） |
 | L4 | `apt` 走海外源导致下载慢 | Debug-4 | 未采纳（`docker/Dockerfile.backend`） | `无守护` |

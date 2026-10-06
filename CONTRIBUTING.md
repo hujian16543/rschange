@@ -153,6 +153,7 @@ uv run python scripts/verify_bindings.py
 uv run python scripts/verify_config.py
 uv run python scripts/verify_version.py
 uv run python scripts/verify_containers.py
+uv run python scripts/verify_doc_paths.py
 
 # 引擎
 cmake --build --preset dev-win                           # 或 dev-linux
@@ -179,7 +180,7 @@ Windows 环境**必须**先设 `PYTHONUTF8=1`（门禁脚本以中文输出，�
 |---|---|---|
 | ① 功能正确性 | C++ 单测（CTest step 14）、Python 测试（step 15） | 功能是否回归 |
 | ② 契约未漂移 | `tests/contract` + `gen_openapi.py --check`（step 18）+ **step 23「契约类型零漂移（openapi → TS）」** | 契约是否漂移 |
-| ③ 环境 / 配置 / 绑定 / 版本 / 容器自洽 | step 19 的五个 `scripts/verify_*.py` | 资产是否自洽 |
+| ③ 环境 / 配置 / 绑定 / 版本 / 容器 / 文档路径自洽 | step 19 的六个 `scripts/verify_*.py` | 资产是否自洽 |
 
 另有类型检查（step 16）、`ruff check .` + `ruff format --check .`（step 17）、
 `npm run check`（step 22）、`npm run build`（step 24）。

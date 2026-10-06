@@ -252,7 +252,7 @@
 | # | 能力 | 旧入口 | 原文「Agent 可调用性」判断 | 新仓库落点 | 判断在新仓库是否仍成立 |
 |---|---|---|---|---|---|
 | 1 | 读取栅格 | `_spatial.read_raster(path)` → `(array, w, h, bands, geo, proj)` | ❌ 需改造：输入是路径 ✓，输出是 numpy 二进制 → Agent 看不懂 | `engine/bindings/module.cpp` 的 `read_raster`；backend 侧封装为返回**具名** `Raster` 的 `spatial/raster.py:read_raster`；加载点收敛为 `spatial/loader.py` | **仍成立**：返回仍是 numpy。但「六元组」改为具名字段（`Read` 位置不再靠下标），可读性显著提高；真正让它进工具箱仍需上层包一层 JSON |
-| 2 | 写入栅格 | `_spatial.write_raster(path, mask, geo, proj)` | ❌ 需改造：掩码须来自上游计算，管道末段才有意义 | `bindings/module.cpp` 的 `write_raster`（新增 `MaskShape` 维度解析、`nb::ro`、`nb::noconvert`）；backend `spatial/raster.py:write_raster` | **仍成立，且使用面更窄**：生产流水线**不调用**它，唯一调用方是 `tests/test_pipeline.py`（`_work/p7/new-arch-digest.md` B3） |
+| 2 | 写入栅格 | `_spatial.write_raster(path, mask, geo, proj)` | ❌ 需改造：掩码须来自上游计算，管道末段才有意义 | `bindings/module.cpp` 的 `write_raster`（新增 `MaskShape` 维度解析、`nb::ro`、`nb::noconvert`）；backend `spatial/raster.py:write_raster` | **仍成立，且使用面更窄**：生产流水线**不调用**它，唯一调用方是 `backend/src/rschange/tests/test_pipeline.py`（`_work/p7/new-arch-digest.md` B3） |
 | 3 | mask → GeoJSON | `_spatial.mask_to_geojson(mask, geo)` → GeoJSON 字符串（**源坐标系**） | ❌ 半成品：输出已是文字 ✓，但坐标系未统一 | 引擎侧 `labeling/contour/simplify/geojson` 四模块；重投影仍在 `io/reproject.py::reproject_geojson` | **仍成立（刻意保留两步）**：原文设想的「合并为一个完整能力」在新架构中**未**合并；但失败模式由「静默返回原串」改为显式 `CrsError`（400） |
 | 4 | CVA 变化检测 | `cva_detect(before, after)` → `(threshold, mask)` | ❌ 需改造：输入输出都是 numpy | `detectors/cva.py::CvaDetector.detect` → `DetectionResult(mask, threshold)`；另有抽象在于 `detectors/base.py` 协议 + `registry.py` 注册表 | **仍成立**（数组进出），但已具备按名装配的能力；参数仍不可调（`HISTOGRAM_BINS = 256` 为模块常量） |
 | 5 | 后处理去噪 | `postprocess(mask, min_size=30)` | ❌ 需改造：纯数组进出；但 `min_size` 是数字参数 → 适合做成「可调旋钮」 | `postprocess/morphology.py::MorphologyPostprocessor.apply`；`min_size` 与 `structure_size` 提为构造参数，来源 `config.postprocess` | **针对「可调旋钮」一条已闭环**：两个旋钮均可通过 TOML / `RSCHANGE_POSTPROCESS__MIN_SIZE` 调节 |
@@ -354,7 +354,7 @@ uv run python scripts/verify_baseline.py --phase 6
 
 ### 8.4 与 CI 对齐
 
-CI 的「仓库自检脚本」步骤按顺序跑 `verify_baseline.py --phase 6` → `verify_bindings.py` → `verify_config.py` → `verify_version.py` → `verify_containers.py`（`.github/workflows/ci.yml` step 19）。本地验证应与该顺序取值完全一致，尤其是 `--phase 6`——**不要**沿用旧 README 的 `--phase 1`。
+CI 的「仓库自检脚本」步骤按顺序跑 `verify_baseline.py --phase 6` → `verify_bindings.py` → `verify_config.py` → `verify_version.py` → `verify_containers.py` → `verify_doc_paths.py`（`.github/workflows/ci.yml` step 19）。本地验证应与该顺序取值完全一致，尤其是 `--phase 6`——**不要**沿用旧 README 的 `--phase 1`。
 
 ---
 

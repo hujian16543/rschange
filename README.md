@@ -2,7 +2,7 @@
 
 基于 CVA（变化向量分析）、Otsu 阈值与沿像素边界追踪（crack following）的遥感影像变化检测平台；C++20 空间引擎通过 nanobind 暴露 `_spatial`，Python 3.14 / FastAPI 负责编排与服务，React 19 / TypeScript 6 / Vite 8 提供界面。
 
-> 当前版本为 `1.0.0`。Phase 7 仅固化文档，产品代码与黄金基线冻结在 Phase 6；基线校验必须使用 `--phase 6`。
+> 当前版本为 `1.0.1`（`v1.0.1` 相对 `v1.0.0` 只修文档路径引用与新增文档路径门禁，产品代码未变）。Phase 7 仅固化文档，产品代码与黄金基线冻结在 Phase 6；基线校验必须使用 `--phase 6`。
 
 ```text
 React 前端 → HTTP /api → FastAPI → pipeline → detectors / postprocess / io / spatial

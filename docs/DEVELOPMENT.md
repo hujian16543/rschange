@@ -267,6 +267,7 @@ npm run build     # tsc -b && vite build
 | 12 | `cd frontend && npm run check` | `tsc -b --noEmit` + `oxlint` + `vitest run` | 前端类型 / lint / 用例任一不通过 |
 | 13 | `cd frontend && npm run build` | `tsc -b && vite build` | 产物不可构建 |
 | 14 | **CI 独有**：契约类型零漂移（openapi → TS） | 以入库 `openapi.json` 重跑 `npm run gen:types`，再要求 `git status --porcelain -- frontend/src/api/generated` 为空 | **契约第二段**漂移：openapi 已更新但前端类型未重生成。字节级判据，覆盖「字段名未变、仅类型变化」这一 `tests/contract/` 字段级比对抓不到的路径 |
+| 15 | `uv run python scripts/verify_doc_paths.py` | 文档写出的仓库相对引用（`docs/…`、`scripts/…`、`backend/…` 等）是否指向真实文件。扫描范围**排除** `docs/archive/`（保留原文的归档）与 `docs/verification/`（冻结报告）；例外须在脚本 `ALLOWLIST` 中写明理由 | 文档路径引用不可解析——读者按图索骥找不到文件。判据集缺此项时，v1.0.0 交付物留有 9 处失效引用（v1.0.1 修正） |
 
 补充：
 
@@ -354,7 +355,7 @@ npm run build     # tsc -b && vite build
 | 编排层签名 | `backend/src/rschange/pipeline/change_detection.py`（`detect_change(request, *, detector, postprocessor, settings=None)`） |
 
 **禁止**修改 `backend/src/rschange/pipeline/change_detection.py`。该约束由阶段出口门 G3.4
-守护：`tests/test_architecture.py:227` 会比对注册前后该文件的 SHA-256 必须不变。
+守护：`backend/src/rschange/tests/test_architecture.py:227` 会比对注册前后该文件的 SHA-256 必须不变。
 
 ### 7.1 ① 实现 `Detector` 协议
 
